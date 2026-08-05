@@ -100,7 +100,7 @@
 
 *{ box-sizing:border-box; }
 
-html,body{ height:100%; }
+html,body{ height:100%; height:100dvh; }
 body{
   margin:0;
   display:flex; flex-direction:column;
@@ -451,6 +451,102 @@ body.soltando::after{
   border:1.5px dashed var(--caret); border-radius:14px;
   background:color-mix(in srgb, var(--papel) 82%, transparent);
   color:var(--caret); font-family:var(--ui); font-size:.9rem;
+}
+
+/* ══════════ Celular e tablet estreito ══════════ */
+@media (max-width:720px){
+  :root{
+    --pad-lado:1rem;
+    --pad-topo:7vh;
+    --pad-base:22vh;
+  }
+
+  /* Duas linhas impedem que os comandos sejam espremidos ou saiam
+     da tela. A primeira cuida dos arquivos; a segunda, da escrita. */
+  .bar{
+    padding-top:env(safe-area-inset-top);
+    /* backdrop-filter cria um bloco de referência para elementos fixed
+       em alguns navegadores móveis e encolhia o menu até a largura do botão. */
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+    background:color-mix(in srgb, var(--papel) 97%, transparent);
+  }
+  .bar-inner{
+    width:100%; padding:.35rem .55rem .4rem;
+    display:grid; grid-template-columns:1fr; gap:.25rem;
+  }
+  .bar-inner > .cresce{ display:none; }
+  .bar-inner > .grupo:first-child{ justify-content:flex-start; gap:.15rem; }
+  .bar-inner > .grupo:last-child{
+    width:100%; justify-content:space-between; gap:0;
+  }
+
+  /* 42px oferece um alvo confortável para o dedo sem tornar a barra
+     excessivamente alta em telas pequenas. */
+  .ico,.tog,.menu-btn{ min-width:42px; height:42px; }
+  .ico.com-rotulo{ height:42px; padding:0 .55rem; font-size:.75rem; }
+  .tog,.menu-btn{ padding:0 .38rem; font-size:.72rem; }
+  .ico svg{ width:19px; height:19px; }
+
+  /* O painel passa a usar a largura disponível e nunca fica cortado
+     pelas bordas ou pelo teclado virtual. */
+  .menu-pop{
+    position:fixed !important;
+    top:calc(env(safe-area-inset-top) + 5.85rem);
+    left:.55rem !important; right:.55rem !important;
+    width:calc(100vw - 1.1rem) !important;
+    min-width:0; max-width:none;
+    max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 7rem);
+    overflow-y:auto; overscroll-behavior:contain;
+    border-radius:12px;
+  }
+  .menu-pop button{
+    min-height:44px; padding:.65rem .7rem .65rem 1.8rem;
+    align-items:center; font-size:.86rem;
+  }
+  .menu-pop button[aria-checked="true"]::before{ left:.65rem; top:.72rem; }
+  .linha-corpo{ padding:.35rem; }
+  .linha-corpo button{ min-height:42px; }
+
+  .overlay,#editor,.preview{
+    /* O mínimo de 16px evita que o iOS amplie a página ao tocar no editor. */
+    font-size:max(var(--tam), 16px);
+    padding-left:var(--pad-lado); padding-right:var(--pad-lado);
+  }
+  body[data-maquina="1"]{ --pad-topo:36dvh; --pad-base:42dvh; }
+
+  .stats{ padding-bottom:env(safe-area-inset-bottom); }
+  .stats-inner{
+    min-height:42px; padding:.45rem var(--pad-lado);
+    gap:.32rem; font-size:.68rem;
+  }
+  #stTempo,.stats-inner > .sep{ display:none; }
+  .dica{ max-width:42vw; }
+
+  .revisao{ max-height:52dvh; padding-bottom:env(safe-area-inset-bottom); }
+  .revisao-inner{ padding:.55rem var(--pad-lado) .7rem; }
+  .ponto{ min-height:44px; padding:.55rem .35rem; }
+  .ponto-palavra{ max-width:36vw; }
+
+  .toast{
+    bottom:calc(3.25rem + env(safe-area-inset-bottom));
+    max-width:calc(100vw - 2rem); text-align:center;
+  }
+}
+
+/* Celulares não disparam mousemove durante a digitação. A barra deve
+   continuar acessível, em vez de desaparecer sem uma forma óbvia de voltar. */
+@media (hover:none) and (pointer:coarse){
+  body[data-chrome="oculto"] .bar,
+  body[data-chrome="oculto"] .stats{
+    opacity:1; transform:none; pointer-events:auto;
+  }
+}
+
+@media (max-width:360px){
+  .bar-inner{ padding-left:.35rem; padding-right:.35rem; }
+  .tog,.menu-btn{ min-width:38px; padding:0 .25rem; font-size:.68rem; }
+  .ico{ min-width:38px; }
+  .ico.com-rotulo{ padding:0 .4rem; gap:.25rem; }
 }
 
 /* ══════════ impressão / PDF ══════════ */
