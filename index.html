@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Escritor</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="claro" data-fonte="duo" data-chrome="visivel">
+
+<!-- ══ barra superior: some enquanto você escreve ══ -->
+<header class="bar" id="bar">
+  <div class="bar-inner">
+
+    <div class="grupo">
+      <button class="ico com-rotulo" id="btnNovo" title="Novo documento (Ctrl+Alt+N)" aria-label="Novo documento">
+        <svg viewBox="0 0 20 20"><path d="M11.5 2.5H5.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.5zM11.5 2.5V6.5h4"/></svg>
+        <span>Novo documento</span>
+      </button>
+      <button class="ico com-rotulo" id="btnAbrir" title="Abrir arquivo (Ctrl+O)" aria-label="Abrir arquivo">
+        <svg viewBox="0 0 20 20"><path d="M2.5 5.5a1 1 0 0 1 1-1h4l1.5 2h7.5a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z"/></svg>
+        <span>Abrir</span>
+      </button>
+      <input type="file" id="fileInput" accept=".md,.markdown,.txt,.text" hidden>
+    </div>
+
+    <div class="cresce"></div>
+
+    <div class="grupo">
+
+      <div class="menu" id="menuFoco">
+        <button class="menu-btn" id="btnFoco" title="Modo Foco (Ctrl+D)">Foco</button>
+        <div class="menu-pop" role="menu">
+          <button role="menuitemradio" data-escopo="nenhum">Desligado<kbd>Ctrl+D</kbd></button>
+          <button role="menuitemradio" data-escopo="frase">Frase</button>
+          <button role="menuitemradio" data-escopo="paragrafo">Parágrafo</button>
+          <button role="menuitemradio" data-escopo="linha">Linha</button>
+          <hr>
+          <button role="menuitemcheckbox" data-alterna="maquina">Máquina de escrever<kbd>Ctrl+T</kbd></button>
+        </div>
+      </div>
+
+      <div class="menu" id="menuRealce">
+        <button class="menu-btn" id="btnRealce" title="Ortografia, estilo e gramática">Realce</button>
+        <div class="menu-pop" role="menu">
+          <button role="menuitemcheckbox" data-alterna="ortografia">Ortografia<kbd>Ctrl+P</kbd></button>
+          <button role="menuitemcheckbox" data-alterna="estilo">Revisão de estilo<kbd>Ctrl+R</kbd></button>
+          <hr>
+          <p class="menu-titulo">Classes gramaticais</p>
+          <button role="menuitemradio" data-classe="nenhuma">Desligado<kbd>Ctrl+G</kbd></button>
+          <button role="menuitemradio" data-classe="g-subst" title="Nomes de seres, lugares, objetos, sentimentos e ideias">Substantivos</button>
+          <button role="menuitemradio" data-classe="g-verbo" title="Ações, estados, mudanças e fenômenos">Verbos</button>
+          <button role="menuitemradio" data-classe="g-adj" title="Características ou qualidades atribuídas aos substantivos">Adjetivos</button>
+          <button role="menuitemradio" data-classe="g-adv" title="Circunstâncias de tempo, lugar, modo, intensidade, afirmação, negação ou dúvida">Advérbios</button>
+          <button role="menuitemradio" data-classe="g-conj" title="Palavras que ligam termos, orações e ideias">Conectivos</button>
+          <button role="menuitemradio" data-classe="todas">Todas as classes</button>
+        </div>
+      </div>
+
+      <button class="tog" id="togVer" aria-pressed="false" title="Visualizar (Ctrl+E)">Visualizar</button>
+
+      <div class="menu" id="menuAa">
+        <button class="menu-btn" id="btnAa" title="Fonte, corpo e papel">Aa</button>
+        <div class="menu-pop" role="menu">
+          <p class="menu-titulo">Fonte</p>
+          <button role="menuitemradio" data-fonte="duo">Duo<i>negrito e itálico reais</i></button>
+          <button role="menuitemradio" data-fonte="mono">Mono<i>monoespaçada</i></button>
+          <button role="menuitemradio" data-fonte="quattro">Quattro<i>itálico sem inclinação</i></button>
+          <hr>
+          <p class="menu-titulo">Corpo</p>
+          <div class="linha-corpo">
+            <button id="corpoMenos" aria-label="Diminuir o corpo">A&minus;</button>
+            <span id="corpoAgora">18px</span>
+            <button id="corpoMais" aria-label="Aumentar o corpo">A+</button>
+          </div>
+          <hr>
+          <p class="menu-titulo">Papel</p>
+          <button role="menuitemradio" data-tema="claro">Claro</button>
+          <button role="menuitemradio" data-tema="sepia">Sépia</button>
+          <button role="menuitemradio" data-tema="escuro">Escuro</button>
+        </div>
+      </div>
+
+      <div class="menu" id="menuExp">
+        <button class="menu-btn" id="btnExp" title="Exportar">Exportar</button>
+        <div class="menu-pop" role="menu">
+          <button data-exp="md">Markdown<i>.md</i></button>
+          <button data-exp="txt">Texto simples<i>.txt</i></button>
+          <button data-exp="html">Página HTML<i>.html</i></button>
+          <button data-exp="doc">Word<i>.doc</i></button>
+          <button data-exp="pdf">PDF<i>imprimir</i></button>
+          <hr>
+          <button data-exp="copy">Copiar Markdown</button>
+          <button data-exp="copyhtml">Copiar HTML</button>
+        </div>
+      </div>
+
+      <button class="ico" id="btnGuia" title="Abrir o guia do Escritor" aria-label="Guia do Escritor">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><path d="M7.9 7.7a2.1 2.1 0 1 1 2.9 2c-.55.3-.8.75-.8 1.4v.3"/><path d="M10 14.25v.15"/></svg>
+      </button>
+
+    </div>
+  </div>
+</header>
+
+<!-- ══ folha ══ -->
+<main class="scroller" id="scroller">
+  <div class="sheet" id="sheet">
+    <div class="overlay" id="overlay" aria-hidden="true"></div>
+    <textarea id="editor" lang="pt-BR" spellcheck="true"
+              autocapitalize="sentences" autocomplete="off" autocorrect="off"
+              aria-label="Editor de texto"></textarea>
+  </div>
+  <article class="preview" id="preview" hidden></article>
+</main>
+
+<!-- ══ painel da revisão de estilo ══ -->
+<aside class="revisao" id="revisao" hidden aria-label="Pontos de atenção">
+  <div class="revisao-inner" id="revisaoLista"></div>
+</aside>
+
+<!-- ══ rodapé de estatísticas ══ -->
+<footer class="stats" id="stats">
+  <div class="stats-inner">
+    <button class="stat" id="stCont" title="Trocar a contagem"><b>0</b> palavras</button>
+    <span class="sep">·</span>
+    <span class="stat quieto"><b id="stTempo">0</b> min de leitura</span>
+    <span class="cresce"></span>
+    <button class="stat dica" id="stDica" hidden title="Corrigir a palavra (Ctrl+;)"></button>
+    <button class="stat alerta" id="stRevisao" hidden aria-expanded="false" aria-controls="revisao"></button>
+    <span class="stat quieto" id="stSalvo">salvo</span>
+  </div>
+</footer>
+
+<!-- área usada só na impressão / PDF -->
+<div class="print-only" id="printView"></div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
