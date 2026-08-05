@@ -59,6 +59,8 @@
       </div>
 
       <button class="tog" id="togVer" aria-pressed="false" title="Visualizar (Ctrl+E)">Visualizar</button>
+      <button class="tog" id="togPoeta" aria-pressed="false"
+              title="Modo Poeta: alinhar e recuar versos">Modo Poeta</button>
 
       <div class="menu" id="menuAa">
         <button class="menu-btn" id="btnAa" title="Fonte, corpo e papel">Aa</button>
@@ -104,9 +106,33 @@
   </div>
 </header>
 
+<!-- ══ régua de recuo: atua sobre a linha ou seleção atual ══ -->
+<div class="regua" id="regua" hidden aria-label="Ferramentas do Modo Poeta">
+  <div class="regua-inner">
+    <span class="regua-alvo" id="reguaAlvo">Linha atual</span>
+    <div class="regua-trilho" id="reguaTrilho" title="Clique para definir o recuo">
+      <div class="regua-marcas" id="reguaMarcas" aria-hidden="true"></div>
+      <button class="regua-cursor" id="reguaCursor" type="button"
+              role="slider" aria-label="Recuo da linha ou seleção"
+              aria-valuemin="0" aria-valuemax="40" aria-valuenow="0"></button>
+    </div>
+    <label class="regua-campo" title="Recuo em espaços">
+      <input id="reguaNumero" type="number" min="0" max="40" value="0"
+             inputmode="numeric" aria-label="Recuo em espaços">
+      <span>esp.</span>
+    </label>
+    <div class="regua-acoes" aria-label="Ajustes rápidos de recuo">
+      <button type="button" id="reguaMenos" title="Recuar 4 espaços" aria-label="Recuar 4 espaços">−</button>
+      <button type="button" id="reguaMais" title="Avançar 4 espaços" aria-label="Avançar 4 espaços">+</button>
+      <button type="button" id="reguaZerar" title="Remover o recuo">Zerar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ folha ══ -->
 <main class="scroller" id="scroller">
   <div class="sheet" id="sheet">
+    <div class="numeros-linha" id="numerosLinha" aria-hidden="true"></div>
     <div class="overlay" id="overlay" aria-hidden="true"></div>
     <textarea id="editor" lang="pt-BR" spellcheck="true"
               autocapitalize="sentences" autocomplete="off" autocorrect="off"

@@ -209,6 +209,85 @@ body[data-chrome="oculto"] .bar{
   font-variant-numeric:tabular-nums;
 }
 
+/* ══════════ régua de recuo ══════════
+   A escala acompanha a largura real da coluna. O marcador aplica
+   espaços à linha atual ou às linhas selecionadas, portanto o recuo
+   continua existindo no Markdown, no Word e nas demais exportações. */
+.regua{
+  position:relative; z-index:30;
+  flex:0 0 34px;
+  border-bottom:1px solid var(--linha);
+  background:color-mix(in srgb, var(--papel) 94%, transparent);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.regua[hidden]{ display:none; }
+.regua-inner{
+  max-width:var(--coluna); height:34px; margin:0 auto;
+  padding:0 var(--pad-lado);
+  display:flex; align-items:center; gap:.5rem;
+}
+.regua-alvo{
+  width:5rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--apagado); font:500 .6rem/1 var(--ui);
+}
+.regua-trilho{
+  --passo-regua:10px;
+  position:relative; flex:1; height:22px; cursor:crosshair;
+  border-bottom:1px solid var(--linha);
+}
+.regua-trilho::before{
+  content:""; position:absolute; inset:auto 0 0; height:8px;
+  background:repeating-linear-gradient(to right,
+    transparent 0 calc(var(--passo-regua) - 1px),
+    var(--linha) calc(var(--passo-regua) - 1px) var(--passo-regua));
+}
+.regua-marcas{ position:absolute; inset:0; pointer-events:none; }
+.regua-numero{
+  position:absolute; bottom:8px; transform:translateX(-50%);
+  color:var(--apagado); font:500 .55rem/1 var(--ui);
+  font-variant-numeric:tabular-nums;
+}
+.regua-cursor{
+  appearance:none; position:absolute; z-index:2;
+  left:0; bottom:-6px; width:14px; height:14px; padding:0;
+  border:0; background:var(--caret); cursor:ew-resize;
+  transform:translateX(-50%);
+  clip-path:polygon(50% 0,100% 42%,100% 100%,0 100%,0 42%);
+}
+.regua-cursor:focus-visible{ outline:2px solid var(--caret); outline-offset:3px; }
+.regua-campo{
+  height:24px; display:flex; align-items:center; gap:.18rem;
+  padding:0 .35rem; border:1px solid var(--linha); border-radius:6px;
+  color:var(--apagado); font:500 .6rem/1 var(--ui);
+}
+.regua-campo:focus-within{ border-color:var(--caret); }
+.regua-campo input{
+  appearance:textfield; width:2rem; padding:0; border:0; outline:0;
+  background:transparent; color:var(--tinta); text-align:right;
+  font:600 .65rem/1 var(--ui); font-variant-numeric:tabular-nums;
+}
+.regua-campo input::-webkit-inner-spin-button{ appearance:none; }
+.regua-acoes{ display:flex; align-items:center; gap:2px; }
+.regua-acoes button{
+  height:24px; min-width:24px; padding:0 .34rem;
+  border:0; border-radius:5px; background:transparent;
+  color:var(--apagado); cursor:pointer; font:600 .65rem/1 var(--ui);
+}
+.regua-acoes button:hover{
+  color:var(--tinta); background:color-mix(in srgb,var(--tinta) 7%,transparent);
+}
+.regua.arrastando .regua-cursor{ transform:translateX(-50%) scale(1.18); }
+.regua.arrastando .regua-trilho{ cursor:ew-resize; }
+@media (max-width:680px){
+  .regua-alvo,.regua-acoes{ display:none; }
+}
+@media (max-width:560px){
+  .regua-inner{ padding-inline:1rem; }
+  .regua-campo span{ display:none; }
+  .numeros-linha{ width:calc(var(--pad-lado) - .2rem); font-size:.52rem; }
+}
+
 /* ══════════ folha de escrita ══════════ */
 .scroller{
   flex:1; min-height:0;
@@ -225,6 +304,25 @@ body[data-chrome="oculto"] .bar{
   margin:0 auto;
   min-height:100%;
 }
+
+/* Numeração editorial exclusiva do Modo Poeta. Cada número é
+   posicionado pela linha correspondente no overlay, então um verso
+   longo que quebre visualmente não desalinha os versos seguintes. */
+.numeros-linha{
+  display:none;
+  position:absolute; z-index:2; inset:0 auto 0 0;
+  width:calc(var(--pad-lado) - .38rem);
+  color:var(--apagado); pointer-events:none; user-select:none;
+  font-family:var(--ui); font-size:.58rem; line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+body[data-poeta="1"] .numeros-linha{ display:block; }
+.numero-linha{
+  position:absolute; right:0; transform:translateY(.42em);
+  min-width:1.6rem; text-align:right; opacity:.7;
+}
+.numero-linha.atual{ color:var(--caret); opacity:1; font-weight:700; }
+.linha-fonte:empty::after{ content:"\200b"; }
 
 /* O overlay define o tamanho; a textarea se estica sobre ele.
    Ambos compartilham exatamente a mesma caixa e a mesma métrica —
@@ -328,6 +426,27 @@ body[data-foco="1"] .t-cit{ color:var(--tinta-foco); }
   font-size:var(--tam); line-height:var(--altura);
   color:var(--tinta);
 }
+.preview.poeta{
+  padding-left:0;
+}
+.verso-preview{
+  display:grid;
+  grid-template-columns:var(--pad-lado) minmax(0, 1fr);
+  min-height:var(--altura);
+}
+.numero-preview{
+  align-self:baseline;
+  padding-right:.38rem;
+  color:var(--apagado);
+  font-family:var(--ui); font-size:.58rem; line-height:1;
+  font-variant-numeric:tabular-nums;
+  text-align:right; user-select:none;
+}
+.conteudo-preview{ min-width:0; }
+.conteudo-preview > :first-child{ margin-top:0; }
+.conteudo-preview > :last-child{ margin-bottom:0; }
+.conteudo-preview > p{ display:inline; }
+.verso-preview.vazio{ min-height:var(--altura); }
 /* Aqui não há cursor para alinhar: os títulos podem enfim crescer. */
 .preview h1,.preview h2,.preview h3,.preview h4{
   line-height:1.25; margin:2em 0 .7em; font-weight:700;

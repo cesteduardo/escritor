@@ -23,6 +23,12 @@ const overlay  = $('#overlay');
 const scroller = $('#scroller');
 const preview  = $('#preview');
 const corpo    = document.body;
+const regua    = $('#regua');
+const reguaTrilho = $('#reguaTrilho');
+const reguaCursor = $('#reguaCursor');
+const reguaNumero = $('#reguaNumero');
+const reguaAlvo = $('#reguaAlvo');
+const numerosLinha = $('#numerosLinha');
 
 const CHAVE_TEXTO = 'escritor:texto';
 const CHAVE_PREFS = 'escritor:prefs';
@@ -33,8 +39,15 @@ const CHAVE_SEU   = 'escritor:seu';
 const prefs = Object.assign({
   escopo: 'nenhum', maquina: false, classe: 'nenhuma',
   ortografia: true, estilo: true, tema: 'claro', fonte: 'duo',
-  corpo: 18, contagem: 0, visualizando: false
+  corpo: 18, contagem: 0, visualizando: false, poeta: false
 }, lerPrefs());
+
+/* Migração da primeira versão, em que a ferramenta se chamava
+   apenas “Régua”. O documento e a preferência do usuário continuam. */
+if (typeof prefs.regua === 'boolean' && typeof lerPrefs().poeta !== 'boolean'){
+  prefs.poeta = prefs.regua;
+}
+delete prefs.regua;
 
 function lerPrefs(){
   try { return JSON.parse(localStorage.getItem(CHAVE_PREFS) || '{}'); }
@@ -668,7 +681,7 @@ function desenhar(){
   const saida = [];
   let base = 0, emCodigo = false;
 
-  for (const linha of linhas){
+  for (const [numeroLinha, linha] of linhas.entries()){
     const ini = base, fim = base + linha.length;
     base = fim + 1;
 
@@ -685,10 +698,12 @@ function desenhar(){
     if (comFoco) pedacos = aplicarFaixas(pedacos, ini, [[fa, fb]], 'dim', true);
 
     const cursorAqui = prefs.maquina && cursor >= ini && cursor <= fim;
-    saida.push(renderizar(pedacos, ini, cursorAqui ? cursor : null));
+    saida.push(`<span class="linha-fonte" data-linha="${numeroLinha}">` +
+      renderizar(pedacos, ini, cursorAqui ? cursor : null) + '</span>');
   }
 
   overlay.innerHTML = saida.join('\n');
+  desenharNumerosLinha(texto, cursor);
 
   atualizarNumeros(texto);
   atualizarDica(texto, cursor);
@@ -698,6 +713,31 @@ function desenhar(){
     precisaCentrar = false;
     centralizarCursor();
   }
+}
+
+function desenharNumerosLinha(texto, cursor){
+  if (!prefs.poeta){
+    numerosLinha.innerHTML = '';
+    return;
+  }
+  const atual = texto.slice(0, cursor).split('\n').length - 1;
+  const textos = texto.split('\n');
+  let verso = 0;
+
+  numerosLinha.innerHTML = [...overlay.querySelectorAll('.linha-fonte')]
+    .map((linha, indice) => {
+      // O branco entre estrofes é estrutura, não verso: não recebe
+      // número e tampouco interrompe a contagem contínua do poema.
+      if (!textos[indice].trim()) return '';
+      verso++;
+
+      const estaAtual = indice === atual;
+      // Como numa edição de poesia, a margem permanece silenciosa:
+      // marca-se cada quinto verso e, para orientação, o verso ativo.
+      if (!estaAtual && verso % 5 !== 0) return '';
+      return `<span class="numero-linha${estaAtual ? ' atual' : ''}" ` +
+        `style="top:${linha.offsetTop}px">${verso}</span>`;
+    }).join('');
 }
 
 function centralizarCursor(){
@@ -886,17 +926,37 @@ function paraHTML(md){
       continue;
     }
 
-    // parágrafo
+    // parágrafo — preserva o recuo poético mesmo quando o HTML é
+    // copiado sem a folha de estilos do Escritor.
     const par = [];
     while (i < linhas.length && linhas[i].trim() &&
            !/^\s*(#{1,6}\s|>|```|~~~)/.test(linhas[i]) &&
            !/^(\s*)([-*+]|\d{1,9}[.)])\s+/.test(linhas[i])){
       par.push(linhas[i++]);
     }
-    out.push(`<p>${inline(par.join('\n')).replace(/\n/g,'<br>')}</p>`);
+    const linhasPar = par.map(linha => {
+      const inicio = (linha.match(/^ +/) || [''])[0].length;
+      return '&nbsp;'.repeat(inicio) + inline(linha.slice(inicio));
+    });
+    out.push(`<p>${linhasPar.join('<br>')}</p>`);
   }
 
   return out.join('\n');
+}
+
+/* Na leitura poética, cada linha do texto continua sendo um verso.
+   Renderizar o poema inteiro como Markdown juntaria linhas vizinhas em
+   parágrafos e apagaria a relação entre verso e número. */
+function paraHTMLPoeta(md){
+  let verso = 0;
+  return md.replace(/\r\n?/g, '\n').split('\n').map(linha => {
+    if (!linha.trim()){
+      return '<div class="verso-preview vazio" aria-hidden="true"><span></span><span>&nbsp;</span></div>';
+    }
+    verso++;
+    return `<div class="verso-preview"><span class="numero-preview">${verso}</span>` +
+      `<span class="conteudo-preview">${paraHTML(linha)}</span></div>`;
+  }).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1044,6 +1104,7 @@ function aplicarPrefs(){
   corpo.dataset.orto    = prefs.ortografia ? '1' : '0';
   corpo.dataset.maquina = prefs.maquina ? '1' : '0';
   corpo.dataset.foco    = prefs.escopo !== 'nenhum' ? '1' : '0';
+  corpo.dataset.poeta   = prefs.poeta ? '1' : '0';
   document.documentElement.style.setProperty('--tam', prefs.corpo + 'px');
   document.querySelector('meta[name=theme-color]').content = COR_TEMA[prefs.tema];
 
@@ -1058,6 +1119,8 @@ function aplicarPrefs(){
   $('#togVer').setAttribute('aria-pressed', prefs.visualizando);
   $('#togVer').textContent = prefs.visualizando ? 'Editar' : 'Visualizar';
   $('#corpoAgora').textContent = prefs.corpo + 'px';
+  $('#togPoeta').setAttribute('aria-pressed', String(prefs.poeta));
+  regua.hidden = !prefs.poeta;
 
   // marcas de estado dentro dos menus
   $$('[data-escopo]').forEach(b => b.setAttribute('aria-checked', b.dataset.escopo === prefs.escopo));
@@ -1086,7 +1149,8 @@ function definirVisualizacao(ativo){
   $('#sheet').hidden = ativo;
   preview.hidden = !ativo;
   if (ativo){
-    preview.innerHTML = paraHTML(editor.value);
+    preview.classList.toggle('poeta', prefs.poeta);
+    preview.innerHTML = prefs.poeta ? paraHTMLPoeta(editor.value) : paraHTML(editor.value);
     preview.querySelectorAll('a[href^="http"]').forEach(a => {
       a.target = '_blank'; a.rel = 'noopener noreferrer';
     });
@@ -1100,12 +1164,155 @@ function definirVisualizacao(ativo){
 function definirCorpo(px){
   prefs.corpo = Math.min(CORPO_MAX, Math.max(CORPO_MIN, px));
   aplicarPrefs();
+  if (prefs.poeta) desenhar();
   if (prefs.maquina) centralizarCursor();
 }
+
+/* ── régua de recuo ────────────────────────────────────────
+   A textarea não possui formatação invisível por parágrafo. Para o
+   recuo sobreviver ao arquivo e às exportações, a régua grava espaços
+   reais no começo das linhas — o mesmo princípio do Tab do editor. */
+function larguraEspaco(){
+  const estilo = getComputedStyle(editor);
+  const canvas = larguraEspaco.canvas || (larguraEspaco.canvas = document.createElement('canvas'));
+  const ctx = canvas.getContext('2d');
+  ctx.font = `${estilo.fontWeight} ${estilo.fontSize} ${estilo.fontFamily}`;
+  return Math.max(4, ctx.measureText(' ').width);
+}
+
+function colunasNoCursor(){
+  const v = editor.value;
+  const ini = v.lastIndexOf('\n', editor.selectionStart - 1) + 1;
+  const branco = (v.slice(ini).match(/^[ \t]*/) || [''])[0];
+  return [...branco].reduce((n, c) => n + (c === '\t' ? 4 : 1), 0);
+}
+
+function quantidadeLinhasSelecionadas(){
+  const {selectionStart:a, selectionEnd:b, value:v} = editor;
+  if (a === b) return 1;
+  const trecho = v.slice(a, b);
+  return Math.max(1, trecho.split('\n').length - (trecho.endsWith('\n') ? 1 : 0));
+}
+
+function atualizarRegua(){
+  if (!prefs.poeta || regua.hidden) return;
+  const passo = larguraEspaco();
+  const max = Math.max(0, Math.min(40, Math.floor(reguaTrilho.clientWidth / passo) - 8));
+  const coluna = Math.min(max, colunasNoCursor());
+  reguaTrilho.style.setProperty('--passo-regua', passo + 'px');
+  reguaCursor.style.left = (coluna * passo) + 'px';
+  reguaCursor.setAttribute('aria-valuemax', String(max));
+  reguaCursor.setAttribute('aria-valuenow', String(coluna));
+  reguaNumero.max = String(max);
+  reguaNumero.value = String(coluna);
+  const linhas = quantidadeLinhasSelecionadas();
+  reguaAlvo.textContent = linhas === 1 ? 'Linha atual' : `${linhas} versos`;
+
+  const marcas = $('#reguaMarcas');
+  marcas.innerHTML = '';
+  for (let n = 0; n <= max; n += 4){
+    const numero = document.createElement('span');
+    numero.className = 'regua-numero';
+    numero.textContent = n;
+    numero.style.left = (n * passo) + 'px';
+    marcas.appendChild(numero);
+  }
+}
+
+function aplicarRecuo(coluna, devolverFoco = true){
+  const v = editor.value;
+  const a = editor.selectionStart;
+  const b = editor.selectionEnd;
+  const ini = v.lastIndexOf('\n', a - 1) + 1;
+  const fimSelecao = b > a && v[b - 1] === '\n' ? b - 1 : b;
+  const quebra = v.indexOf('\n', fimSelecao);
+  const fim = quebra < 0 ? v.length : quebra;
+  const bloco = v.slice(ini, fim);
+  const novo = bloco.replace(/^[ \t]*/gm, ' '.repeat(coluna));
+  editor.setRangeText(novo, ini, fim, 'select');
+  if (a === b){
+    const delta = novo.length - bloco.length;
+    const cursor = Math.max(ini + coluna, a + delta);
+    editor.setSelectionRange(cursor, cursor);
+  }
+  aoDigitar();
+  if (devolverFoco) editor.focus();
+  atualizarRegua();
+}
+
+function colunaDoPonteiro(event){
+  const caixa = reguaTrilho.getBoundingClientRect();
+  const passo = larguraEspaco();
+  const max = Number(reguaCursor.getAttribute('aria-valuemax')) || 40;
+  return Math.max(0, Math.min(max, Math.round((event.clientX - caixa.left) / passo)));
+}
+
+function iniciarArrasteRegua(event){
+  if (event.button !== 0) return;
+  event.preventDefault();
+  const mover = e => {
+    const coluna = colunaDoPonteiro(e);
+    reguaCursor.style.left = (coluna * larguraEspaco()) + 'px';
+    reguaNumero.value = String(coluna);
+    reguaCursor.setAttribute('aria-valuenow', String(coluna));
+  };
+  const soltar = e => {
+    window.removeEventListener('pointermove', mover);
+    window.removeEventListener('pointerup', soltar);
+    regua.classList.remove('arrastando');
+    aplicarRecuo(colunaDoPonteiro(e));
+  };
+  regua.classList.add('arrastando');
+  mover(event);
+  window.addEventListener('pointermove', mover);
+  window.addEventListener('pointerup', soltar);
+}
+
+reguaTrilho.addEventListener('pointerdown', iniciarArrasteRegua);
+reguaNumero.addEventListener('input', () => {
+  // Ao substituir um valor, o campo passa brevemente por vazio. Não
+  // reponha zero nesse instante: o usuário ainda está digitando.
+  if (reguaNumero.value === '') return;
+  aplicarRecuo(
+    Math.max(0, Math.min(Number(reguaNumero.max) || 40, Number(reguaNumero.value))),
+    false
+  );
+});
+reguaNumero.addEventListener('change', () => aplicarRecuo(
+  Math.max(0, Math.min(Number(reguaNumero.max) || 40, Number(reguaNumero.value) || 0))
+));
+$('#reguaMenos').onclick = () => aplicarRecuo(Math.max(0, colunasNoCursor() - 4));
+$('#reguaMais').onclick = () => aplicarRecuo(Math.min(
+  Number(reguaCursor.getAttribute('aria-valuemax')) || 40, colunasNoCursor() + 4
+));
+$('#reguaZerar').onclick = () => aplicarRecuo(0);
+reguaCursor.addEventListener('keydown', e => {
+  if (!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+  e.preventDefault();
+  const atual = Number(reguaCursor.getAttribute('aria-valuenow')) || 0;
+  const max = Number(reguaCursor.getAttribute('aria-valuemax')) || 40;
+  const proximo = e.key === 'Home' ? 0
+    : e.key === 'End' ? max
+    : Math.max(0, Math.min(max, atual + (e.key === 'ArrowRight' ? 1 : -1)));
+  aplicarRecuo(proximo);
+});
+window.addEventListener('resize', () => {
+  atualizarRegua();
+  desenharNumerosLinha(editor.value, editor.selectionStart);
+});
 
 /* ── ligações ─────────────────────────────────────────────── */
 
 $('#togVer').onclick = () => definirVisualizacao(!prefs.visualizando);
+$('#togPoeta').onclick = () => {
+  prefs.poeta = !prefs.poeta;
+  aplicarPrefs();
+  desenhar();
+  if (prefs.visualizando) definirVisualizacao(true);
+  atualizarRegua();
+  avisar(prefs.poeta ? 'Modo Poeta ativado' : 'Modo Poeta desativado');
+  if (!prefs.visualizando) editor.focus();
+};
 
 $('#stCont').onclick = () => {
   prefs.contagem = (prefs.contagem + 1) % CONTAGENS.length;
@@ -1143,6 +1350,7 @@ $$('[data-tema]').forEach(b => b.onclick = () => {
 });
 $$('[data-fonte]').forEach(b => b.onclick = () => {
   prefs.fonte = b.dataset.fonte; aplicarPrefs();
+  if (prefs.poeta) desenhar();
   if (prefs.maquina) centralizarCursor();
   if (!prefs.visualizando) editor.focus();
 });
@@ -1342,6 +1550,7 @@ editor.addEventListener('input', aoDigitar);
   editor.addEventListener(ev, () => {
     precisaCentrar = prefs.maquina;
     desenhar();
+    atualizarRegua();
   }));
 
 /* Clicar na folha sempre devolve o cursor ao texto — inclusive nas
@@ -1513,6 +1722,7 @@ editor.value = (seuTexto && guardado && guardado.trim()) ? guardado : GUIA;
 aplicarPrefs();
 if (prefs.visualizando) definirVisualizacao(true);
 else desenhar();
+requestAnimationFrame(atualizarRegua);
 
 editor.focus();
 editor.setSelectionRange(0, 0);
