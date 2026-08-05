@@ -2,7 +2,7 @@
 
 Uma superfície de escrita no espírito do [iA Writer](https://ia.net/writer): folha branca, barra que some enquanto se escreve, Markdown realçado sem transformar o texto, e nada mais.
 
-Abra `index.html` no navegador. Não há build, dependência ou servidor — é um único aplicativo local e funciona offline, fontes incluídas.
+Abra `index.html` no navegador. Não há build, dependência ou servidor, é um único aplicativo local e funciona offline, fontes incluídas.
 
 ```bash
 # opcional, se preferir servir por HTTP
