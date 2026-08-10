@@ -144,16 +144,21 @@ body[data-chrome="oculto"] .bar{
   transition:color 120ms, background 120ms;
   white-space:nowrap;
 }
-.ico{ display:grid; place-items:center; width:30px; height:28px; }
+.ico{ display:grid; place-items:center; width:32px; height:30px; }
 .ico.com-rotulo{
-  display:flex; width:auto; padding:0 .5rem; gap:.35rem;
-  font-size:.735rem; letter-spacing:.006em;
+  display:flex; width:auto; padding:0 .55rem; gap:.38rem;
+  font-size:.8rem; letter-spacing:.006em;
 }
-.ico svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.4;
+.ico svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.4;
           stroke-linejoin:round; stroke-linecap:round; }
+/* o botão de tela cheia troca o desenho conforme o estado */
+#btnTela .tela-sair{ display:none; }
+body[data-tela="1"] #btnTela .tela-entrar{ display:none; }
+body[data-tela="1"] #btnTela .tela-sair{ display:block; }
+body[data-tela="1"] #btnTela{ color:var(--caret); }
 .tog,.menu-btn{
-  height:28px; padding:0 .5rem;
-  font-size:.735rem; letter-spacing:.006em;
+  height:30px; padding:0 .55rem;
+  font-size:.8rem; letter-spacing:.006em;
 }
 .ico:hover,.tog:hover,.menu-btn:hover{
   color:var(--tinta); background:color-mix(in srgb, var(--tinta) 7%, transparent);
@@ -431,7 +436,9 @@ body[data-foco="1"] .t-cit{ color:var(--tinta-foco); }
 }
 .verso-preview{
   display:grid;
-  grid-template-columns:var(--pad-lado) minmax(0, 1fr);
+  /* a faixa dos números não encolhe abaixo do que cabe em três
+     dígitos, mesmo quando a margem do celular aperta */
+  grid-template-columns:max(var(--pad-lado), 1.7rem) minmax(0, 1fr);
   min-height:var(--altura);
 }
 .numero-preview{
@@ -524,8 +531,8 @@ body[data-chrome="oculto"] .stats{ opacity:0; pointer-events:none; }
 .stats-inner{
   max-width:var(--coluna); margin:0 auto;
   padding:.5rem var(--pad-lado) .65rem;
-  display:flex; align-items:center; gap:.42rem;
-  font-size:.7rem; letter-spacing:.02em;
+  display:flex; align-items:center; gap:.46rem;
+  font-size:.77rem; letter-spacing:.02em;
   color:var(--apagado);
 }
 .stats b{ color:var(--tinta); font-weight:600; font-variant-numeric:tabular-nums; }
@@ -597,6 +604,9 @@ body.soltando::after{
   .bar-inner > .grupo:first-child{ justify-content:flex-start; gap:.15rem; }
   .bar-inner > .grupo:last-child{
     width:100%; justify-content:space-between; gap:0;
+    /* onde nem assim couber, a linha quebra: nenhum comando some
+       para fora da tela. */
+    flex-wrap:wrap; row-gap:.15rem;
   }
 
   /* 42px oferece um alvo confortável para o dedo sem tornar a barra
@@ -610,11 +620,14 @@ body.soltando::after{
      pelas bordas ou pelo teclado virtual. */
   .menu-pop{
     position:fixed !important;
-    top:calc(env(safe-area-inset-top) + 5.85rem);
+    /* --barra-h é medida em app.js: o painel acompanha a barra mesmo
+       quando ela quebra em duas linhas. */
+    top:calc(var(--barra-h, 5.85rem) + .3rem);
     left:.55rem !important; right:.55rem !important;
     width:calc(100vw - 1.1rem) !important;
     min-width:0; max-width:none;
-    max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 7rem);
+    max-height:calc(100dvh - var(--barra-h, 5.85rem)
+                    - env(safe-area-inset-bottom) - 1.6rem);
     overflow-y:auto; overscroll-behavior:contain;
     border-radius:12px;
   }
@@ -631,6 +644,9 @@ body.soltando::after{
     font-size:max(var(--tam), 16px);
     padding-left:var(--pad-lado); padding-right:var(--pad-lado);
   }
+  /* No Modo Poeta a margem esquerda abre um pouco: é ali que ficam os
+     números dos versos, que de outro modo sairiam cortados. */
+  body[data-poeta="1"]{ --pad-lado:1.9rem; }
   body[data-maquina="1"]{ --pad-topo:36dvh; --pad-base:42dvh; }
 
   .stats{ padding-bottom:env(safe-area-inset-bottom); }
@@ -638,7 +654,6 @@ body.soltando::after{
     min-height:42px; padding:.45rem var(--pad-lado);
     gap:.32rem; font-size:.68rem;
   }
-  #stTempo,.stats-inner > .sep{ display:none; }
   .dica{ max-width:42vw; }
 
   .revisao{ max-height:52dvh; padding-bottom:env(safe-area-inset-bottom); }
@@ -649,6 +664,71 @@ body.soltando::after{
   .toast{
     bottom:calc(3.25rem + env(safe-area-inset-bottom));
     max-width:calc(100vw - 2rem); text-align:center;
+  }
+}
+
+/* Telas pequenas: a letra recua um passo e o texto respira menos no
+   topo. Vem depois do bloco acima para não brigar com ele. */
+@media (max-width:640px){
+  :root{ --tam:17px; --pad-topo:6vh; --pad-base:24vh; }
+  .menu-pop button{ font-size:.84rem; }
+  .menu-pop button i,.menu-pop button kbd{ font-size:.72rem; }
+
+  /* "Modo Poeta" vira "Poeta" e "Visualizar" vira "Vis": os rótulos
+     encurtam antes de a barra precisar quebrar em duas linhas. */
+  .so-largo{ display:none; }
+
+  /* O tempo de leitura sai inteiro — antes ficava o "min de leitura"
+     sem o número na frente. */
+  #stLeitura,.stats-inner > .sep{ display:none; }
+}
+
+/* Tablet: a coluna de 46rem quase encosta nas bordas de uma tela de
+   768px. Ela passa a ceder antes disso, e barra, texto e rodapé
+   continuam centrados sobre a mesma medida. */
+@media (min-width:721px) and (max-width:1100px){
+  :root{ --coluna:min(46rem, 100vw - 4rem); --pad-lado:1.8rem; }
+}
+
+/* Tudo o que é conduzido pelo dedo — inclusive o tablet largo, que
+   não entra na faixa de 720px e continua com o desenho de mesa.
+   Aqui o que muda é o alvo, não o layout. */
+@media (pointer:coarse){
+  .ico,.tog,.menu-btn{ min-height:40px; }
+  .ico{ min-width:40px; }
+  .menu-pop button{ min-height:42px; align-items:center; }
+  .linha-corpo button{ min-height:40px; }
+  .ponto{ min-height:42px; }
+  .stats button.stat{ padding-block:.4rem; }
+
+  /* 16px é o limiar abaixo do qual o iOS amplia a página ao focar
+     o editor — e a ampliação desalinharia o cursor. */
+  .overlay,#editor,.preview{ font-size:max(var(--tam), 16px); }
+
+  /* A régua vira alvo de dedo: pega maior, trilho mais alto e sem
+     rolagem da página enquanto se arrasta o marcador. */
+  .regua{ flex-basis:44px; }
+  .regua-inner{ height:44px; }
+  .regua-trilho{ height:30px; touch-action:none; }
+  .regua-cursor{ width:22px; height:22px; bottom:-9px; touch-action:none; }
+  .regua-campo,.regua-acoes button{ height:32px; }
+  .regua-campo input{ font-size:.72rem; }
+}
+
+/* Celular deitado: sobra pouca altura, então as margens verticais
+   encolhem e os painéis param de comer a tela inteira. */
+@media (orientation:landscape) and (max-height:520px){
+  :root{ --pad-topo:4vh; --pad-base:16vh; }
+  body[data-maquina="1"]{ --pad-topo:30dvh; --pad-base:36dvh; }
+  .revisao{ max-height:62dvh; }
+  .menu-pop{ max-height:calc(100dvh - 4.5rem) !important; }
+}
+
+/* Recorte da câmera na lateral, com o aparelho deitado. */
+@media (orientation:landscape){
+  .bar,.regua,.scroller,.revisao,.stats{
+    padding-left:env(safe-area-inset-left);
+    padding-right:env(safe-area-inset-right);
   }
 }
 
@@ -671,10 +751,14 @@ body.soltando::after{
 /* ══════════ impressão / PDF ══════════ */
 .print-only{ display:none; }
 @media print{
-  .bar,.stats,.scroller,.toast,.revisao{ display:none !important; }
+  .bar,.stats,.scroller,.toast,.revisao,.regua{ display:none !important; }
+  html,body{ margin:0 !important; padding:0 !important; }
   body{ display:block; background:#fff; color:#000; }
   .print-only{
     display:block;
+    padding:2.4cm 2.2cm;
+    box-sizing:border-box;
+    -webkit-box-decoration-break:clone; box-decoration-break:clone;
     font:12pt/1.65 Georgia,"Times New Roman",serif; color:#000;
   }
   .print-only h1,.print-only h2,.print-only h3{
@@ -694,15 +778,26 @@ body.soltando::after{
   .print-only table{ border-collapse:collapse; width:100%; }
   .print-only th,.print-only td{ border:.5pt solid #999; padding:4pt; text-align:left; }
   .print-only a{ color:#000; }
-  @page{ margin:2.4cm 2.2cm; }
-}
 
-/* ══════════ telas estreitas ══════════ */
-@media (max-width:640px){
-  :root{ --tam:17px; --pad-topo:6vh; --pad-base:30vh; --pad-lado:1.15rem; }
-  .bar-inner{ flex-wrap:wrap; gap:.2rem; }
-  .tog,.menu-btn{ font-size:.7rem; padding:0 .42rem; }
-  .menu-pop{ min-width:12rem; }
+  /* Identificação editorial somente depois do último conteúdo. */
+  .print-only .assinatura{
+    margin-top:2.6cm; padding-top:8pt; border-top:.5pt solid #bbb;
+    display:flex; flex-direction:column; align-items:center; gap:3pt;
+    page-break-inside:avoid; break-inside:avoid;
+    font-family:Helvetica,Arial,sans-serif; font-size:8.5pt;
+    line-height:1.55; color:#777; text-align:center;
+  }
+  .print-only .assinatura-data{ text-align:center; }
+  .print-only .assinatura-obra{ order:-1; text-align:center; color:#555; letter-spacing:.02em; }
+  .print-only .assinatura-marca a{
+    color:#777; text-decoration:none;
+    display:inline-flex; align-items:center; gap:.4em;
+  }
+  .print-only .assinatura .folha{ vertical-align:middle; }
+
+  /* Margem zero impede que o navegador injete data, título e URL.
+     O espaçamento editorial passa a pertencer ao documento acima. */
+  @page{ size:A4; margin:0; }
 }
 
 @media (prefers-reduced-motion:reduce){

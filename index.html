@@ -58,9 +58,13 @@
         </div>
       </div>
 
-      <button class="tog" id="togVer" aria-pressed="false" title="Visualizar (Ctrl+E)">Visualizar</button>
+      <button class="tog" id="togVer" aria-pressed="false" title="Visualizar (Ctrl+E)">Vis<span class="so-largo">ualizar</span></button>
       <button class="tog" id="togPoeta" aria-pressed="false"
-              title="Modo Poeta: alinhar e recuar versos">Modo Poeta</button>
+              title="Modo Poeta: alinhar e recuar versos"><span class="so-largo">Modo </span>Poeta</button>
+      <button class="ico" id="btnTela" aria-pressed="false" title="Tela cheia" aria-label="Tela cheia">
+        <svg class="tela-entrar" viewBox="0 0 20 20"><path d="M7.5 2.5h-5v5M17.5 12.5v5h-5M12.5 2.5h5v5M2.5 12.5v5h5"/></svg>
+        <svg class="tela-sair" viewBox="0 0 20 20"><path d="M2.5 7.5h5v-5M17.5 12.5h-5v5M12.5 2.5v5h5M7.5 17.5v-5h-5"/></svg>
+      </button>
 
       <div class="menu" id="menuAa">
         <button class="menu-btn" id="btnAa" title="Fonte, corpo e papel">Aa</button>
@@ -151,7 +155,7 @@
   <div class="stats-inner">
     <button class="stat" id="stCont" title="Trocar a contagem"><b>0</b> palavras</button>
     <span class="sep">·</span>
-    <span class="stat quieto"><b id="stTempo">0</b> min de leitura</span>
+    <span class="stat quieto" id="stLeitura"><b id="stTempo">0</b> min de leitura</span>
     <span class="cresce"></span>
     <button class="stat dica" id="stDica" hidden title="Corrigir a palavra (Ctrl+;)"></button>
     <button class="stat alerta" id="stRevisao" hidden aria-expanded="false" aria-controls="revisao"></button>

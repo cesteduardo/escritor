@@ -32,7 +32,7 @@ Isso importa por um motivo prático: emendar os pedaços de volta devolve a linh
 ## O que tem
 
 ### Foco
-Recua tudo o que não é o trecho atual. Três escopos no menu **Foco**: **Frase** (o padrão do iA Writer), **Parágrafo** e **Linha**.
+Recua tudo o que não é o trecho atual. Três escopos no menu **Foco**: **Frase** (o padrão do iA Writer), **Parágrafo** e **Linha**. O último considera a linha visual na tela, inclusive quando um parágrafo quebra automaticamente pela largura da folha.
 
 ### Máquina de escrever
 Mantém a linha do cursor sempre no centro vertical da tela. O texto sobe; os olhos ficam parados. A folha ganha respiro em cima e embaixo para que a primeira e a última linha também alcancem o meio.
@@ -50,7 +50,7 @@ Faz uma coisa só: **um risco vermelho ondulado embaixo da palavra suspeita**. S
 No Firefox: clique com o botão direito no editor → **Idiomas** → *Adicionar dicionários*.
 
 ### Revisão de estilo
-Clichês, muletas, redundâncias e escorregões de norma-padrão recebem um traço pontilhado âmbar. O rodapé mostra quantos são; clicar na contagem abre a lista, e clicar num item leva direto ao trecho, já selecionado.
+Palavras de conteúdo muito repetidas recebem um traço pontilhado âmbar; palavras funcionais comuns não entram na conta. Frases longas ou prolixas também são apontadas e recebem uma sugestão de refundição frasal, orientada por concisão e *mot juste*. O rodapé mostra quantos pontos existem. Clicar repetidamente em um item percorre, uma a uma, todas as ocorrências correspondentes no texto.
 
 ### Classes gramaticais
 Pinta uma classe de palavras por vez (substantivos, verbos, adjetivos, advérbios ou conectivos) ou todas de uma vez. O resto do texto recua para dar protagonismo à classe escolhida. Serve para enxergar o ritmo da frase: excesso de adjetivo, falta de verbo, uma corrente de conectivos que não termina.
