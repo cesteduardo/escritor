@@ -220,7 +220,7 @@ body[data-tela="1"] #btnTela{ color:var(--caret); }
    continua existindo no Markdown, no Word e nas demais exportações. */
 .regua{
   position:relative; z-index:30;
-  flex:0 0 34px;
+  flex:0 0 38px;
   border-bottom:1px solid var(--linha);
   background:color-mix(in srgb, var(--papel) 94%, transparent);
   backdrop-filter:blur(16px);
@@ -228,13 +228,13 @@ body[data-tela="1"] #btnTela{ color:var(--caret); }
 }
 .regua[hidden]{ display:none; }
 .regua-inner{
-  max-width:var(--coluna); height:34px; margin:0 auto;
+  max-width:var(--coluna); height:38px; margin:0 auto;
   padding:0 var(--pad-lado);
   display:flex; align-items:center; gap:.5rem;
 }
 .regua-alvo{
-  width:5rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  color:var(--apagado); font:500 .6rem/1 var(--ui);
+  width:5.4rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--apagado); font:500 .68rem/1 var(--ui);
 }
 .regua-trilho{
   --passo-regua:10px;
@@ -250,7 +250,7 @@ body[data-tela="1"] #btnTela{ color:var(--caret); }
 .regua-marcas{ position:absolute; inset:0; pointer-events:none; }
 .regua-numero{
   position:absolute; bottom:8px; transform:translateX(-50%);
-  color:var(--apagado); font:500 .55rem/1 var(--ui);
+  color:var(--apagado); font:500 .62rem/1 var(--ui);
   font-variant-numeric:tabular-nums;
 }
 .regua-cursor{
@@ -262,22 +262,22 @@ body[data-tela="1"] #btnTela{ color:var(--caret); }
 }
 .regua-cursor:focus-visible{ outline:2px solid var(--caret); outline-offset:3px; }
 .regua-campo{
-  height:24px; display:flex; align-items:center; gap:.18rem;
+  height:26px; display:flex; align-items:center; gap:.2rem;
   padding:0 .35rem; border:1px solid var(--linha); border-radius:6px;
-  color:var(--apagado); font:500 .6rem/1 var(--ui);
+  color:var(--apagado); font:500 .68rem/1 var(--ui);
 }
 .regua-campo:focus-within{ border-color:var(--caret); }
 .regua-campo input{
   appearance:textfield; width:2rem; padding:0; border:0; outline:0;
   background:transparent; color:var(--tinta); text-align:right;
-  font:600 .65rem/1 var(--ui); font-variant-numeric:tabular-nums;
+  font:600 .72rem/1 var(--ui); font-variant-numeric:tabular-nums;
 }
 .regua-campo input::-webkit-inner-spin-button{ appearance:none; }
 .regua-acoes{ display:flex; align-items:center; gap:2px; }
 .regua-acoes button{
-  height:24px; min-width:24px; padding:0 .34rem;
+  height:26px; min-width:26px; padding:0 .38rem;
   border:0; border-radius:5px; background:transparent;
-  color:var(--apagado); cursor:pointer; font:600 .65rem/1 var(--ui);
+  color:var(--apagado); cursor:pointer; font:600 .72rem/1 var(--ui);
 }
 .regua-acoes button:hover{
   color:var(--tinta); background:color-mix(in srgb,var(--tinta) 7%,transparent);

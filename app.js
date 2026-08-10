@@ -146,7 +146,7 @@ const CLICHES = [
   "para ser sincero","o fato é que","de uma forma ou de outra"
 ];
 
-const REGRAS_ESTILO = [
+const REGRAS_ESTILO_ANTIGAS = [
   ...CLICHES.map(c => ({
     re: new RegExp(B_ANTES + c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + B_DEPOIS, 'gi'),
     msg: 'Expressão desgastada ou pouco precisa. Considere uma formulação mais direta.'
@@ -186,6 +186,30 @@ const REGRAS_ESTILO = [
     msg:'Retire o espaço antes do sinal de pontuação.' },
   { re:/[!?]{3,}/g,
     msg:'O excesso de sinais pode enfraquecer a frase; um costuma bastar.' }
+];
+
+/* O Ctrl+R usa somente estes critérios. As antigas regras acima ficam
+   isoladas para não misturar correção gramatical com revisão estilística. */
+const PALAVRAS_COMUNS = new Set(`
+a o as os um uma uns umas de da do das dos em no na nos nas por para com sem
+e ou mas nem que se como quando porque pois embora enquanto então assim também
+à ao aos às pelo pela pelos pelas seu sua seus suas este esta estes estas esse
+essa esses essas ele ela eles elas eu tu nós vós você vocês me te lhe lhes meu
+minha meus minhas nosso nossa nossos nossas isso isto aquilo ser estar ter haver
+foi eram era são é tem têm há mais menos muito muita muitos muitas já ainda não
+sim só cada todo toda todos todas outro outra outros outras mesmo mesma mesmos mesmas
+`.trim().split(/\s+/));
+
+const TROCAS_CONCISAS = [
+  [/\b(?:é importante|vale) (?:ressaltar|destacar|lembrar) que\s*/gi, ''],
+  [/\bdevido ao fato de que\b/gi, 'porque'],
+  [/\bcom o objetivo de\b/gi, 'para'],
+  [/\bno que diz respeito a\b/gi, 'sobre'],
+  [/\bno final das contas\b/gi, ''],
+  [/\b(?:de certa forma|de alguma forma|por assim dizer|basicamente|literalmente)\b,?\s*/gi, ''],
+  [/\b(?:planejar antecipadamente|encarar de frente)\b/gi, m => m.split(' ')[0]],
+  [/\b(?:subir para cima|descer para baixo|entrar para dentro|sair para fora)\b/gi,
+    m => m.split(' ')[0]]
 ];
 
 /* Conectivos ligam palavras, orações e ideias: conjunções, preposições
@@ -560,37 +584,127 @@ function regiaoAtiva(texto, cursor){
   return [limIni + ini, limIni + Math.max(fim, ini)];
 }
 
+/* Depois que o overlay foi composto, o navegador já sabe onde a linha
+   quebrou visualmente. Medimos os retângulos dos caracteres da linha
+   lógica atual para manter nítida somente a fileira em que está o cursor. */
+function regiaoLinhaVisual(texto, cursor){
+  const iniLogico = texto.lastIndexOf('\n', Math.max(0, cursor - 1)) + 1;
+  let fimLogico = texto.indexOf('\n', cursor);
+  if (fimLogico === -1) fimLogico = texto.length;
+  const numero = texto.slice(0, iniLogico).split('\n').length - 1;
+  const elemento = overlay.querySelector(`[data-linha="${numero}"]`);
+  const tamanho = fimLogico - iniLogico;
+  if (!elemento || !tamanho) return [iniLogico, fimLogico];
+
+  function topoDoCaractere(indice){
+    const walker = document.createTreeWalker(elemento, NodeFilter.SHOW_TEXT);
+    let no, restante = indice;
+    while ((no = walker.nextNode())){
+      if (restante < no.data.length){
+        const faixa = document.createRange();
+        faixa.setStart(no, restante);
+        faixa.setEnd(no, restante + 1);
+        const rect = faixa.getClientRects()[0];
+        return rect ? rect.top : null;
+      }
+      restante -= no.data.length;
+    }
+    return null;
+  }
+
+  const relativo = Math.min(Math.max(0, cursor - iniLogico), tamanho - 1);
+  const topo = topoDoCaractere(relativo);
+  if (topo === null) return [iniLogico, fimLogico];
+  let a = relativo, b = relativo + 1;
+  while (a > 0 && Math.abs(topoDoCaractere(a - 1) - topo) < 1) a--;
+  while (b < tamanho && Math.abs(topoDoCaractere(b) - topo) < 1) b++;
+  return [iniLogico + a, iniLogico + b];
+}
+
 /* ═══════════════════════════════════════════════════════════
    4. Revisão de estilo
    ═══════════════════════════════════════════════════════════ */
 
 let apontamentos = [];
+const proximaOcorrencia = new Map();
+let alvoRevisao = null;
 
 function revisar(texto){
   if (!prefs.estilo) return [];
   const achados = [];
-  for (const regra of REGRAS_ESTILO){
-    const re = regra.re;
-    re.lastIndex = 0;
-    let m;
-    while ((m = re.exec(texto))){
-      if (m[0] === ''){ re.lastIndex++; continue; }
-      achados.push({
-        ini: m.index,
-        fim: m.index + m[0].length,
-        palavra: m[0].trim() || m[0],
-        msg: regra.msg
-      });
-    }
+  const ocorrencias = new Map();
+  const rePalavra = /[A-Za-zÀ-ÖØ-öø-ÿ]{4,}/g;
+  let m, total = 0;
+  while ((m = rePalavra.exec(texto))){
+    total++;
+    const chave = m[0].toLocaleLowerCase('pt-BR');
+    if (PALAVRAS_COMUNS.has(chave)) continue;
+    if (!ocorrencias.has(chave)) ocorrencias.set(chave, []);
+    ocorrencias.get(chave).push([m.index, m.index + m[0].length, m[0]]);
+  }
+
+  // A tolerância cresce com o documento; nunca se acusa menos de quatro usos.
+  const limite = Math.max(4, Math.ceil(total / 75));
+  for (const lista of ocorrencias.values()){
+    if (lista.length < limite) continue;
+    const [ini, fim, grafia] = lista[0];
+    achados.push({
+      ini, fim, palavra: grafia,
+      faixas: lista.map(([a, b]) => [a, b]),
+      msg: `Aparece ${lista.length} vezes.`
+    });
+  }
+
+  const reFrase = /[^.!?…\n]+(?:[.!?…]+|$)/g;
+  while ((m = reFrase.exec(texto))){
+    const esquerda = m[0].search(/\S/);
+    if (esquerda < 0) continue;
+    const frase = m[0].trim();
+    const n = (frase.match(/[A-Za-zÀ-ÖØ-öø-ÿ]+/g) || []).length;
+    const muletas = TROCAS_CONCISAS.reduce((s, [re]) => s + (frase.match(re) || []).length, 0);
+    if (n < 32 && muletas < 2) continue;
+    achados.push({
+      ini: m.index + esquerda,
+      fim: m.index + esquerda + frase.length,
+      palavra: n >= 32 ? `Frase longa · ${n} palavras` : 'Frase prolixa',
+      msg: `Sugestão de refundição: “${refundirFrase(frase)}”`
+    });
   }
   achados.sort((a, b) => a.ini - b.ini || b.fim - a.fim);
-  // um trecho já apontado não é apontado de novo
-  const limpos = [];
-  for (const a of achados){
-    if (limpos.some(b => a.ini < b.fim && b.ini < a.fim)) continue;
-    limpos.push(a);
+  return achados;
+}
+
+function refundirFrase(frase){
+  let nova = frase;
+  for (const [re, troca] of TROCAS_CONCISAS) nova = nova.replace(re, troca);
+  nova = nova
+    .replace(/\b([A-Za-zÀ-ÖØ-öø-ÿ]{3,})(\s+\1\b)+/gi, '$1')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/,\s*,/g, ',')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  if ((nova.match(/[A-Za-zÀ-ÖØ-öø-ÿ]+/g) || []).length >= 32){
+    const antes = nova;
+    nova = nova.replace(/,\s+(mas|porém|contudo|entretanto|e)\s+/i,
+      (_, conector) => `. ${conector[0].toUpperCase()}${conector.slice(1)} `);
+    nova = nova.replace(/;\s+/, '. ');
+    // Sem um conectivo claro, a vírgula mais próxima do centro oferece
+    // um ponto de partida menos arbitrário para duas frases respiráveis.
+    if (nova === antes){
+      const virgulas = [...nova.matchAll(/,\s+/g)];
+      const meio = nova.length / 2;
+      const corte = virgulas.sort((a, b) =>
+        Math.abs(a.index - meio) - Math.abs(b.index - meio))[0];
+      if (corte){
+        const pos = corte.index;
+        const seguinte = nova.slice(pos + corte[0].length);
+        nova = nova.slice(0, pos) + '. ' +
+          seguinte.replace(/^([a-zà-öø-ÿ])/, l => l.toLocaleUpperCase('pt-BR'));
+      }
+    }
   }
-  return limpos;
+  nova = nova.replace(/^([a-zà-öø-ÿ])/, l => l.toLocaleUpperCase('pt-BR'));
+  return nova || frase;
 }
 
 function renderRevisao(){
@@ -633,16 +747,39 @@ $('#revisaoLista').addEventListener('click', (e) => {
   if (!botao) return;
   const a = apontamentos[+botao.dataset.ponto];
   if (!a) return;
-  editor.focus();
-  editor.setSelectionRange(a.ini, a.fim);
+  const destinos = a.faixas || [[a.ini, a.fim]];
+  const chave = a.faixas
+    ? `palavra:${a.palavra.toLocaleLowerCase('pt-BR')}`
+    : `trecho:${a.ini}:${a.fim}`;
+  const indice = (proximaOcorrencia.get(chave) || 0) % destinos.length;
+  const [ini, fim] = destinos[indice];
+  proximaOcorrencia.set(chave, (indice + 1) % destinos.length);
+  alvoRevisao = ini;
+  editor.focus({ preventScroll:true });
+  editor.setSelectionRange(ini, fim);
   desenhar();
-  rolarAte(a.ini);
+  // Foco e seleção podem disparar uma rolagem nativa depois do clique.
+  // Reposicionamos no quadro seguinte, quando o overlay e o layout terminaram.
+  requestAnimationFrame(() => {
+    rolarAte(ini);
+    requestAnimationFrame(() => rolarAte(ini));
+  });
 });
 
 /* Traz um ponto do texto para a área visível.
    O overlay repete o texto caractere por caractere, então dá para
    localizar qualquer posição percorrendo os nós de texto dele. */
 function rolarAte(posicao){
+  // O clique na revisão insere uma âncora de largura zero exatamente no
+  // destino. Ela é mais confiável do que recontar nós com Markdown aninhado.
+  const ancora = document.getElementById('marcaCursor');
+  if (ancora){
+    const caixa = ancora.getBoundingClientRect();
+    const refer = scroller.getBoundingClientRect();
+    const alvo = scroller.scrollTop + (caixa.top - refer.top) - scroller.clientHeight * 0.4;
+    scroller.scrollTop = Math.max(0, alvo);
+    return;
+  }
   const passeio = document.createTreeWalker(overlay, NodeFilter.SHOW_TEXT);
   let contado = 0, no;
   while ((no = passeio.nextNode())){
@@ -678,31 +815,37 @@ function desenhar(){
   apontamentos = revisar(texto);
 
   const linhas = texto.split('\n');
-  const saida = [];
-  let base = 0, emCodigo = false;
-
-  for (const [numeroLinha, linha] of linhas.entries()){
-    const ini = base, fim = base + linha.length;
-    base = fim + 1;
-
-    const cerca = /^\s*(```|~~~)/.test(linha);
-    let pedacos = cerca ? [pd(linha, 'mk t-cod')] : pedacosDaLinha(linha, emCodigo);
-    if (cerca) emCodigo = !emCodigo;
-
-    if (prefs.estilo && apontamentos.length){
-      const faixas = apontamentos
-        .filter(a => a.ini < fim && a.fim > ini)
-        .map(a => [a.ini, a.fim]);
-      if (faixas.length) pedacos = aplicarFaixas(pedacos, ini, faixas, 'estilo', false);
+  function montarOverlay(){
+    const saida = [];
+    let base = 0, emCodigo = false;
+    for (const [numeroLinha, linha] of linhas.entries()){
+      const ini = base, fim = base + linha.length;
+      base = fim + 1;
+      const cerca = /^\s*(```|~~~)/.test(linha);
+      let pedacos = cerca ? [pd(linha, 'mk t-cod')] : pedacosDaLinha(linha, emCodigo);
+      if (cerca) emCodigo = !emCodigo;
+      if (prefs.estilo && apontamentos.length){
+        const faixas = apontamentos
+          .flatMap(a => a.faixas || [[a.ini, a.fim]])
+          .filter(([a, b]) => a < fim && b > ini);
+        if (faixas.length) pedacos = aplicarFaixas(pedacos, ini, faixas, 'estilo', false);
+      }
+      if (comFoco) pedacos = aplicarFaixas(pedacos, ini, [[fa, fb]], 'dim', true);
+      const posicaoMarca = alvoRevisao !== null
+        ? alvoRevisao
+        : (prefs.maquina ? cursor : null);
+      const cursorAqui = posicaoMarca !== null && posicaoMarca >= ini && posicaoMarca <= fim;
+      saida.push(`<span class="linha-fonte" data-linha="${numeroLinha}">` +
+        renderizar(pedacos, ini, cursorAqui ? posicaoMarca : null) + '</span>');
     }
-    if (comFoco) pedacos = aplicarFaixas(pedacos, ini, [[fa, fb]], 'dim', true);
-
-    const cursorAqui = prefs.maquina && cursor >= ini && cursor <= fim;
-    saida.push(`<span class="linha-fonte" data-linha="${numeroLinha}">` +
-      renderizar(pedacos, ini, cursorAqui ? cursor : null) + '</span>');
+    overlay.innerHTML = saida.join('\n');
   }
 
-  overlay.innerHTML = saida.join('\n');
+  montarOverlay();
+  if (comFoco && prefs.escopo === 'linha'){
+    [fa, fb] = regiaoLinhaVisual(texto, cursor);
+    montarOverlay();
+  }
   desenharNumerosLinha(texto, cursor);
 
   atualizarNumeros(texto);
@@ -963,14 +1106,56 @@ function paraHTMLPoeta(md){
    8. Exportação
    ═══════════════════════════════════════════════════════════ */
 
-function tituloDoTexto(){
+/* Primeira linha com algum conteúdo, sem a marcação do Markdown.
+   Serve ao rodapé das exportações; o nome do arquivo vem depois. */
+function tituloLegivel(){
   const l = editor.value.split('\n').find(x => x.trim());
-  if (!l) return 'documento';
+  if (!l) return '';
   return l.replace(/^#+\s*/,'').replace(/[*_`>[\]]/g,'')
-          .trim().slice(0, 60)
+          .trim().slice(0, 60).trim();
+}
+
+function tituloDoTexto(){
+  return tituloLegivel()
           .replace(/[\\/:*?"<>|]/g,'-')
           .replace(/[.\s]+$/,'')          // sem ponto final grudado na extensão
           .trim() || 'documento';
+}
+
+/* ── assinatura do rodapé ──────────────────────────────────
+   Título e data, centralizados e discretos, ao pé da página;
+   abaixo, só a folha — que leva ao Escritor. */
+
+const ESCRITOR_URL = 'https://cesteduardo.github.io/escritor/';
+
+const FOLHA_SVG =
+  `<svg class="folha" viewBox="0 0 20 20" width="15" height="15" aria-label="Escritor" ` +
+  `role="img" fill="none" stroke="currentColor" stroke-width="1.15" ` +
+  `stroke-linecap="round" stroke-linejoin="round">` +
+  `<path d="M11.5 2.5H5.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.5z"/>` +
+  `<path d="M11.5 2.5V6.5h4"/></svg>`;
+
+function dataPorExtenso(){
+  return new Date().toLocaleDateString('pt-BR',
+    { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/* `glifo` troca o desenho por um caractere onde SVG não chega (Word). */
+function assinaturaHTML(glifo){
+  const t = tituloLegivel();
+  const marca = glifo || FOLHA_SVG;
+
+  // O Word não faz flex: a assinatura centralizada vira uma tabela.
+  if (glifo) return `<hr class="assinatura-filete">` +
+    `<table class="assinatura"><tr><td align="center">${escapar(t)}<br>` +
+    `${escapar(dataPorExtenso())}<br>` +
+    `<a href="${ESCRITOR_URL}">Escrito no ${marca}</a></td></tr></table>`;
+
+  return `<footer class="assinatura">` +
+    `<span class="assinatura-data">${escapar(dataPorExtenso())}</span>` +
+    `<span class="assinatura-marca"><a href="${ESCRITOR_URL}">Escrito no ${marca}</a></span>` +
+    `<span class="assinatura-obra">${escapar(t)}</span>` +
+    `</footer>`;
 }
 
 function baixar(nome, conteudo, tipo){
@@ -1000,6 +1185,17 @@ hr{border:0;border-top:1px solid #e9ebef;margin:2.4em 0}
 img{max-width:100%;border-radius:8px}
 table{width:100%;border-collapse:collapse;font-size:.94em}
 th,td{border:1px solid #e9ebef;padding:.45em .7em;text-align:left}
+.assinatura{margin:4.5rem 0 1rem;padding-top:1rem;
+  display:flex;flex-direction:column;align-items:center;gap:.25em;text-align:center;
+  border-top:1px solid #e9ebef;
+  font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:.78em;line-height:1.6;color:#8a9099}
+.assinatura-data{text-align:center;font-variant-numeric:oldstyle-nums}
+.assinatura-obra{order:-1;text-align:center;color:#5b6069;letter-spacing:.02em}
+.assinatura-marca a{color:inherit;text-decoration:none;
+  display:inline-flex;align-items:center;gap:.4em}
+.assinatura-marca a:hover{color:#3d434c}
+.assinatura .folha{vertical-align:middle;opacity:.85}
 `;
 
 async function exportar(tipo){
@@ -1017,7 +1213,7 @@ async function exportar(tipo){
       `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">` +
       `<meta name="viewport" content="width=device-width,initial-scale=1">` +
       `<title>${escapar(nome)}</title><style>${CSS_EXPORT}</style></head>` +
-      `<body>\n${paraHTML(md)}\n</body></html>`,
+      `<body>\n${paraHTML(md)}\n${assinaturaHTML()}\n</body></html>`,
       'text/html;charset=utf-8');
   }
 
@@ -1032,12 +1228,21 @@ async function exportar(tipo){
       `code,pre{font-family:Consolas,monospace;font-size:10.5pt}` +
       `pre{background:#f4f4f4;padding:8pt}` +
       `table{border-collapse:collapse}th,td{border:.5pt solid #999;padding:4pt}` +
-      `</style></head><body>${paraHTML(md)}</body></html>`;
+      // o Word não desenha SVG: a folha vira glifo
+      `.assinatura-filete{margin-top:36pt;border:0;border-top:.5pt solid #ccc}` +
+      `table.assinatura{width:100%;margin-top:8pt;text-align:center;` +
+      `font-family:Calibri,Arial,sans-serif;font-size:9pt;color:#777}` +
+      `table.assinatura td{border:0;padding:0}` +
+      `table.assinatura a{color:#777;text-decoration:none}` +
+      `</style></head><body>${paraHTML(md)}${assinaturaHTML('🗎')}</body></html>`;
     return baixar(`${nome}.doc`, '﻿' + doc, 'application/msword;charset=utf-8');
   }
 
   if (tipo === 'pdf'){
     prepararImpressao();
+    // O endereço do arquivo no alto da página é do navegador, não daqui:
+    // só a caixa "cabeçalhos e rodapés" do diálogo o remove — uma vez, e fica.
+    avisar('Na janela de impressão, desmarque “cabeçalhos e rodapés”', 6000);
     window.print();
     return;
   }
@@ -1057,9 +1262,10 @@ async function exportar(tipo){
    nunca sai em branco. */
 let tituloAntes = '';
 function prepararImpressao(){
-  $('#printView').innerHTML = paraHTML(editor.value);
+  $('#printView').innerHTML = paraHTML(editor.value) + assinaturaHTML();
   tituloAntes = document.title;
-  document.title = tituloDoTexto();
+  // Evita que o cabeçalho automático do navegador repita o nome da obra.
+  document.title = '';
 }
 window.addEventListener('beforeprint', prepararImpressao);
 window.addEventListener('afterprint', () => {
@@ -1071,12 +1277,12 @@ window.addEventListener('afterprint', () => {
    ═══════════════════════════════════════════════════════════ */
 
 let relogioAviso;
-function avisar(msg){
+function avisar(msg, ms = 1900){
   const t = $('#toast');
   t.textContent = msg;
   t.classList.add('vivo');
   clearTimeout(relogioAviso);
-  relogioAviso = setTimeout(() => t.classList.remove('vivo'), 1900);
+  relogioAviso = setTimeout(() => t.classList.remove('vivo'), ms);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1117,7 +1323,9 @@ function aplicarPrefs(){
   $('#btnRealce').classList.toggle('ativo', comRealce);
 
   $('#togVer').setAttribute('aria-pressed', prefs.visualizando);
-  $('#togVer').textContent = prefs.visualizando ? 'Editar' : 'Visualizar';
+  // o trecho em .so-largo some nas telas estreitas: "Visualizar" → "Vis"
+  $('#togVer').innerHTML = prefs.visualizando
+    ? 'Editar' : 'Vis<span class="so-largo">ualizar</span>';
   $('#corpoAgora').textContent = prefs.corpo + 'px';
   $('#togPoeta').setAttribute('aria-pressed', String(prefs.poeta));
   regua.hidden = !prefs.poeta;
@@ -1313,6 +1521,27 @@ $('#togPoeta').onclick = () => {
   avisar(prefs.poeta ? 'Modo Poeta ativado' : 'Modo Poeta desativado');
   if (!prefs.visualizando) editor.focus();
 };
+
+/* Tela cheia: some a moldura do navegador e sobra a folha.
+   Onde a API não existe (iOS), o botão nem aparece. */
+const btnTela = $('#btnTela');
+if (!document.documentElement.requestFullscreen){
+  btnTela.hidden = true;
+} else {
+  btnTela.onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen()
+           .catch(() => avisar('O navegador não permitiu a tela cheia'));
+  };
+  // F11 e Esc mudam o estado sem passar pelo botão: seguimos o evento
+  document.addEventListener('fullscreenchange', () => {
+    const cheia = !!document.fullscreenElement;
+    document.body.dataset.tela = cheia ? '1' : '0';
+    btnTela.setAttribute('aria-pressed', String(cheia));
+    btnTela.title = cheia ? 'Sair da tela cheia' : 'Tela cheia';
+    btnTela.setAttribute('aria-label', btnTela.title);
+  });
+}
 
 $('#stCont').onclick = () => {
   prefs.contagem = (prefs.contagem + 1) % CONTAGENS.length;
@@ -1536,6 +1765,7 @@ function esconderChrome(){ corpo.dataset.chrome = 'oculto'; }
 function mostrarChrome(){ corpo.dataset.chrome = 'visivel'; }
 
 function aoDigitar(){
+  alvoRevisao = null;
   precisaCentrar = prefs.maquina;
   desenhar();
   guardarTexto();
@@ -1557,9 +1787,15 @@ editor.addEventListener('input', aoDigitar);
    margens laterais e no branco abaixo da última linha, que não fazem
    parte da caixa de edição. Antes, um clique ali tirava o foco e o
    que se digitasse em seguida não chegava a lugar nenhum. */
-scroller.addEventListener('mousedown', (e) => {
+scroller.addEventListener('pointerdown', (e) => {
   if (prefs.visualizando || e.target === editor) return;
   if (e.target.closest('a, button')) return;
+  // No dedo o preventDefault engoliria o toque que abre o teclado:
+  // ali basta chamar o foco e deixar o navegador cuidar do resto.
+  if (e.pointerType !== 'mouse'){
+    editor.focus();
+    return;
+  }
   e.preventDefault();                       // não perde a seleção atual
   editor.focus();
   // clique abaixo do texto: o cursor vai para o fim do documento
@@ -1575,7 +1811,7 @@ document.addEventListener('click', (e) => {
   if (prefs.visualizando) return;
   if (!e.target.closest('.bar, .stats, .revisao')) return;
   if (e.target.closest('#btnAbrir, #fileInput, .menu-btn')) return;
-  editor.focus();
+  editor.focus({ preventScroll:true });
 });
 
 document.addEventListener('mousemove', mostrarChrome);
@@ -1583,6 +1819,36 @@ scroller.addEventListener('scroll', () => {
   corpo.dataset.scrolled = scroller.scrollTop > 4 ? '1' : '0';
 });
 window.addEventListener('resize', () => { if (prefs.maquina) centralizarCursor(); });
+
+/* A altura real da barra vira variável de CSS: no celular o painel
+   suspenso nasce logo abaixo dela, tenha ela uma linha ou duas. */
+const barra = $('#bar');
+const medirBarra = () =>
+  document.documentElement.style.setProperty('--barra-h', `${barra.offsetHeight}px`);
+medirBarra();
+if (window.ResizeObserver) new ResizeObserver(medirBarra).observe(barra);
+else window.addEventListener('resize', medirBarra);
+
+/* O teclado virtual não dispara `resize` em todos os navegadores: ele
+   encolhe a janela visual. Sem isto, no celular a linha que se digita
+   pode acabar escondida atrás do teclado. */
+if (window.visualViewport){
+  window.visualViewport.addEventListener('resize', () => {
+    atualizarRegua();
+    if (prefs.maquina) centralizarCursor();
+    else if (document.activeElement === editor) manterCursorVisivel();
+  });
+}
+
+/* Rola o mínimo para que a linha do cursor volte a aparecer acima do
+   teclado — sem saltos quando ela já está visível. */
+function manterCursorVisivel(){
+  const marca = document.getElementById('marcaCursor');
+  if (!marca) return;
+  const alvo = marca.getBoundingClientRect().bottom;
+  const limite = (window.visualViewport?.height || window.innerHeight) - 24;
+  if (alvo > limite) scroller.scrollTop += alvo - limite;
+}
 window.addEventListener('beforeunload', () => {
   try {
     localStorage.setItem(CHAVE_TEXTO, editor.value);
@@ -1637,7 +1903,7 @@ No mesmo menu, **Máquina de escrever** mantém a linha atual perto do centro da
 O menu **Realce** ajuda a encontrar problemas sem alterar o conteúdo automaticamente:
 
 1. **Ortografia** — palavras suspeitas recebem um sublinhado vermelho. Quando houver uma correção conhecida, coloque o cursor sobre a palavra: a sugestão aparecerá no rodapé. Clique nela ou pressione \`Ctrl+;\` para substituir. Você pode desfazer com \`Ctrl+Z\`.
-2. **Revisão de estilo** — marca clichês, repetições, redundâncias e alguns desvios da norma-padrão com um traço âmbar. A quantidade aparece no rodapé; clique nela para abrir a lista e depois clique em um aviso para ir ao trecho correspondente.
+2. **Revisão de estilo** — marca palavras muito repetidas e frases longas ou prolixas com um traço âmbar. Para as frases, propõe uma refundição mais concisa, guiada pelo *mot juste*. A quantidade aparece no rodapé; clique nela para abrir a lista e depois clique em um aviso para ir ao trecho correspondente.
 3. **Classes gramaticais** — colore uma categoria de palavras e recua as demais. Isso permite observar como o texto foi construído.
 
 ### O que são as classes gramaticais
@@ -1676,7 +1942,17 @@ Também é possível copiar Markdown ou HTML para a área de transferência. O p
 
 ## Rodapé
 
-Na parte inferior, o Escritor mostra a quantidade de palavras, o estado do salvamento e o número de observações da revisão. Quando uma correção ortográfica estiver disponível, ela também aparece ali.
+Na parte inferior, o Escritor mostra a quantidade de palavras, o tempo estimado de leitura, o estado do salvamento e o número de observações da revisão. Quando uma correção ortográfica estiver disponível, ela também aparece ali.
+
+**Clique no contador** para ver outras medidas do texto. Cada clique passa para a seguinte, em ordem, e volta ao começo:
+
+1. **palavras**
+2. **caracteres** — tudo, inclusive espaços e quebras de linha
+3. **sem espaços** — só os caracteres visíveis
+4. **frases** — contadas pelos pontos finais, de interrogação, de exclamação e reticências
+5. **parágrafos** — blocos separados por uma linha em branco
+
+A contagem escolhida continua ali na próxima vez que você abrir o Escritor. O **tempo de leitura**, ao lado, é estimado em 200 palavras por minuto e não muda com o contador.
 
 ---
 
@@ -1699,6 +1975,22 @@ Na parte inferior, o Escritor mostra a quantidade de palavras, o estado do salva
 | \`Ctrl+Alt+N\` | novo documento |
 
 O botão **?** na barra substitui temporariamente a folha por este guia. Se houver um texto seu aberto, o aplicativo pede confirmação antes.
+
+---
+
+### Se quiser tudo maior
+
+O **Corpo**, no menu **Aa**, aumenta as letras do seu texto — e só elas. Para ampliar a tela inteira (a barra, o rodapé, as margens e o texto, tudo junto), use o zoom do próprio navegador:
+
+- Segure \`Ctrl\` e pressione \`+\` para aumentar. Cada toque amplia mais um pouco; pode repetir.
+- Segure \`Ctrl\` e pressione \`-\` para diminuir.
+- Segure \`Ctrl\` e pressione \`0\` (o número zero) para voltar ao tamanho normal.
+
+Também funciona segurar \`Ctrl\` e girar a roda do mouse. No Mac, troque \`Ctrl\` por \`⌘\`.
+
+Ao lado de **Modo Poeta** há ainda o botão de **tela cheia**, com os quatro cantos: ele esconde as abas e a barra de endereço do navegador e deixa só a folha. Clique de novo — ou pressione \`Esc\` — para voltar.
+
+O navegador guarda o zoom escolhido e o aplica sempre que você voltar ao Escritor, mesmo depois de fechar. Nada disso altera o documento: o arquivo salvo ou exportado sai igual, qualquer que seja o zoom da tela.
 `;
 
 /* ═══════════════════════════════════════════════════════════
