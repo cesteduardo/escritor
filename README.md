@@ -1,113 +1,140 @@
-# Escritor
+# Escritor 2.0
 
-Uma superfície de escrita no espírito do [iA Writer](https://ia.net/writer): folha branca, barra que some enquanto se escreve, Markdown realçado sem transformar o texto, e nada mais.
+Um caderno de escrita e estudo em Markdown, no espírito do [iA Writer](https://ia.net/writer): folha limpa, barra que some enquanto você escreve, Markdown realçado sem transformar o texto. A versão 2.0 transforma a folha única num caderno: várias notas, grifo e notas de rodapé no botão direito, imagens coladas, pasta do Obsidian e uma interface inteira redesenhada no estilo do macOS e do GNOME.
 
-Abra `index.html` no navegador. Não há build, dependência ou servidor. É um único aplicativo local e funciona offline, fontes incluídas.
+Abra `index.html` no navegador. Não há build, dependência nem servidor; funciona offline, com as fontes e os ícones incluídos.
 
 ```bash
 # opcional, se preferir servir por HTTP
 python3 -m http.server 8000
 ```
 
-O documento que aparece ao abrir é o **guia**, o texto que explica o aplicativo escrevendo nele mesmo. Ele volta a cada sessão enquanto você não tiver escrito nada seu; a partir do momento em que houver um texto seu guardado, é ele que abre. O botão **?** na barra traz o guia de volta quando você quiser.
+Na primeira abertura aparece o **Guia do Escritor**, um texto que explica o aplicativo escrito nele mesmo. A primeira coisa que você escrever vira uma nota sua.
 
 ---
 
-## Como funciona por dentro
+## O que há de novo na 2.0
 
-O texto vive numa `<textarea>` com a cor transparente. Logo abaixo dela, um `<div>` espelha o mesmo conteúdo já realçado, com **exatamente** a mesma métrica tipográfica: mesma fonte, mesmo corpo, mesma entrelinha, mesmo padding, mesma quebra de linha.
+### Notas, sem barra lateral
+O botão **Notas** (ou `Ctrl+O`) abre um pop-up no meio da tela com todas as suas notas em cartões: título, começo do texto, quando foi mexida e quantas palavras tem. Dá para procurar, abrir com `Enter`, criar uma **Nova nota** (`Ctrl+Alt+N`) e apagar, com **Desfazer** por alguns segundos. Não existe barra lateral: a ideia é a folha inteira para escrever, e o arquivo de verdade morar no Obsidian.
 
-O resultado: você vê o texto realçado, mas o cursor, a seleção, o desfazer, o arrastar e o corretor ortográfico continuam sendo os **nativos do navegador**. Nenhum deles foi reimplementado.
+Quem vinha da 1.x não perde nada: o documento único de antes vira a primeira nota na primeira abertura.
 
-A regra que sustenta tudo: **o realce nunca altera a quantidade de caracteres**. Os sinais do Markdown (`#`, `**`, `[ ]`) permanecem visíveis, apenas recuados em cinza. É por isso que o texto nunca "pula" enquanto você escreve e o cursor nunca desalinha.
+### Botão direito: o caderno de estudos
+Clicar com o botão direito no texto abre um menu ao lado do mouse:
 
-### Pedaços, não camadas
+- **Recortar, Copiar, Colar** e **Selecionar tudo**. O Colar também traz imagens da área de transferência.
+- **Formatar:** negrito, itálico, riscado, código e link.
+- **Estudo:**
+  - **Grifar** (`==texto==`, o mesmo grifo do Obsidian, `Ctrl+Shift+H`);
+  - **Nota de rodapé** (a chamada `[^1]` fica no cursor e o texto da nota vai para o fim);
+  - **Comentário oculto** (`%%assim%%`, fica no arquivo e some na leitura e na exportação);
+  - **Tarefa** e **Imagem**.
+- **Parágrafo:** título, subtítulo, citação, lista e lista numerada. Funcionam em várias linhas de uma vez e desfazem se você aplicar de novo.
 
-Cada linha é quebrada numa lista de **pedaços**: um trecho de texto com zero ou mais classes. Foco, revisão de estilo, ortografia e classes gramaticais não empilham tags por fora do realce. Eles partem o pedaço no ponto exato onde começam e acrescentam mais uma classe a ele.
+No celular, o toque longo continua mostrando o menu do sistema, que já sabe selecionar.
 
-Isso importa por um motivo prático: emendar os pedaços de volta devolve a linha original, caractere por caractere. Ligar o modo foco não desmancha mais o realce dos títulos, das listas e das citações, como acontecia quando o recuo era uma tag envolvendo o resto.
+### Imagens coladas
+Cole uma imagem (`Ctrl+V`), arraste um arquivo de imagem para a folha ou use **Inserir imagem** no menu Documento. A imagem fica guardada no navegador e o texto recebe `![](anexos/imagem-….png)`. Ela aparece no **Visualizar**, vai **dentro** dos arquivos exportados (HTML, Word, PDF e Copiar HTML) e, com uma pasta do Obsidian ligada, é gravada em `anexos/`, ao lado das notas.
+
+### Menus no meio da tela, largos
+Tudo abre como pop-up central, deitado para os lados:
+
+- **Foco:** as quatro maneiras (Desligado, Frase, Parágrafo, Linha) em cartões lado a lado, cada um com um desenho do que fica nítido, e a Máquina de escrever logo abaixo.
+- **Realce:** a revisão (ortografia e estilo) numa coluna e as classes gramaticais na outra, cada uma com a bolinha da sua cor.
+- **Documento:** quatro abas (**Arquivo, Exportar, Ferramentas, Ajuda**) com uma grade de ícones.
+
+Nos menus nada acende sozinho: só o que está sob o ponteiro ou sob as setas do teclado. A pílula que desliza fica só onde as opções correm da esquerda para a direita, como nos seletores e nas abas.
+
+### Personalizar
+O painel **Aa** (`Ctrl+,`) ganhou uma fileira de ícones centrada no alto, como nas Preferências do macOS: Estilos, Aparência, Texto, Escrita, Revisão, Tela e meta, Obsidian e Atalhos. Cada ícone mostra a sua seção, com mais espaço; a busca no alto junta as seções e mostra tudo o que bate. A **amostra** à direita muda na hora com cada ajuste.
+
+A seção **Obsidian** virou um módulo de verdade: estado da pasta, escolher, salvar agora, esquecer, salvar sozinho enquanto escreve e um passo a passo de como funciona.
+
+### Ícones do GNOME e letra Inter
+Os ícones dos menus e do Personalizar vêm do **Adwaita**, o tema de ícones do GNOME, nas versões *symbolic*. A interface inteira usa a **Inter**. As cores dos quadradinhos do Personalizar continuam as mesmas.
+
+### Correções
+- **Modo Foco:** a linha anterior piscava ao passar para a próxima. O destaque só era redesenhado quando a tecla subia; agora anda no mesmo instante que o cursor.
+- **Modo Poeta:** o título não conta mais como verso, os números da margem ficaram legíveis e o rodapé mostra “verso 4 de 8 · estrofe 1 de 2”.
+- **Seletores:** um clique em qualquer lugar da página reaplicava a fonte e puxava o cursor para o texto.
 
 ---
 
-## O que tem
+## O que mais tem
 
-### Foco
-Recua tudo o que não é o trecho atual. Três escopos no menu **Foco**: **Frase** (o padrão do iA Writer), **Parágrafo** e **Linha**. O último considera a linha visual na tela, inclusive quando um parágrafo quebra automaticamente pela largura da folha.
+**Foco.** Recua tudo o que não é o trecho atual: Frase, Parágrafo ou Linha (a linha visual na tela, inclusive quando um parágrafo quebra pela largura). A **Intensidade do foco** (leve, médio, forte) fica no Personalizar.
 
-### Máquina de escrever
-Mantém a linha do cursor sempre no centro vertical da tela. O texto sobe; os olhos ficam parados. A folha ganha respiro em cima e embaixo para que a primeira e a última linha também alcancem o meio.
+**Máquina de escrever.** A linha do cursor fica sempre no meio da tela; o texto sobe e os olhos ficam parados.
 
-### Ortografia
-Faz uma coisa só: **um risco vermelho ondulado embaixo da palavra suspeita**. Sem sugestões por cima do texto, sem menus, sem interrupção. São duas camadas:
+**Ortografia.** Um risco vermelho embaixo da palavra suspeita, sem nada por cima do texto. Usa o dicionário pt-BR do navegador e uma lista própria de erros clássicos (`concerteza`, `derrepente`, `apartir`…). Com o cursor numa delas, a forma certa aparece no rodapé; clicar nela ou `Ctrl+;` faz a troca, e `Ctrl+Z` desfaz.
 
-1. **O dicionário pt-BR do próprio navegador**, desenhado diretamente sobre a `<textarea>`. Como o marcador de erro é pintado independentemente da cor do texto, ele continua visível mesmo com o texto transparente. É daqui que vem a cobertura real do vocabulário.
-2. **Uma lista própria** de erros clássicos do português escrito (`concerteza`, `derrepente`, `apartir`, `menas`, `pesquiza`, acentuação faltando em `voce`/`tambem`/`ja`…). Com o cursor em cima de uma dessas palavras, a forma correta aparece no canto do rodapé. **Clicar nela, ou `Ctrl+;`, faz a troca**. A caixa da palavra original é preservada (`Concerteza` vira `Com certeza`), e a correção entra como uma edição sua, então `Ctrl+Z` a desfaz.
+**Revisão de estilo.** Repetições, frases longas e vícios ganham um pontilhado âmbar. O rodapé conta os pontos; clicar abre a lista no meio da tela e leva a cada ocorrência.
 
-> **Só entra na lista o que está sempre errado.** Formas que existem em algum contexto, como `mais`, `há`, `nós`, `pra`, `publico` (eu publico) e `pratica` (ele pratica), ficam de fora, porque um alarme falso custa mais caro do que um erro não apontado.
+**Classes gramaticais.** Pinta uma classe por vez (substantivos, verbos, adjetivos, advérbios, conectivos) ou todas, e recua o resto. É uma heurística, não um analisador: o que é ambíguo fica sem cor.
 
-**Se nada for sublinhado**, o Chrome provavelmente não tem o dicionário de português instalado. A lista própria continua funcionando, mas a cobertura fica reduzida. Ative em:
-`chrome://settings/languages` → **Verificação ortográfica** → adicione *Português (Brasil)*.
-No Firefox: clique com o botão direito no editor → **Idiomas** → *Adicionar dicionários*.
+**Visualizar.** Esconde os sinais do Markdown e mostra o texto formatado, com grifos, notas de rodapé numeradas e imagens. Lendo, o olho da barra vira caneta para voltar a escrever.
 
-### Revisão de estilo
-Palavras de conteúdo muito repetidas recebem um traço pontilhado âmbar; palavras funcionais comuns não entram na conta. Frases longas ou prolixas também são apontadas e recebem uma sugestão de refundição frasal, orientada por concisão e *mot juste*. O rodapé mostra quantos pontos existem. Clicar repetidamente em um item percorre, uma a uma, todas as ocorrências correspondentes no texto.
+**Tela cheia.** Botão na barra ou `Ctrl+Shift+F`. No computador, no Android e no iPad usa a tela cheia do navegador; no iPhone, onde ela não existe, entra um modo imersivo com um botão discreto para sair.
 
-### Classes gramaticais
-Pinta uma classe de palavras por vez (substantivos, verbos, adjetivos, advérbios ou conectivos) ou todas de uma vez. O resto do texto recua para dar protagonismo à classe escolhida. Serve para enxergar o ritmo da frase: excesso de adjetivo, falta de verbo, uma corrente de conectivos que não termina.
+**Modo Poeta.** Régua de recuo para os versos, numeração editorial na margem (a cada cinco versos e o verso atual) e contagem de versos e estrofes no rodapé.
 
-> **É uma heurística, não um analisador morfológico.** A classificação usa vocabulários de substantivos, adjetivos, advérbios e verbos frequentes, conectivos (conjunções, preposições e suas contrações) e regras conservadoras de sufixo. Artigos e pronomes não são tratados como conectivos. Há também exceções para o que uma terminação poderia confundir (`lugar` não é verbo só por terminar em `-ar`). Palavras ambíguas ou não reconhecidas ficam sem cor, em vez de receberem um palpite.
+**Buscar e substituir** (`Ctrl+F`, `Ctrl+H`), **Sumário** (`Ctrl+Shift+O`), **metas de palavras**, **ritmo de leitura**, **estilos prontos e salvos**, **cor de destaque própria**, papel **automático** (claro de dia, escuro à noite) e **exportar/importar** os ajustes num `.json`.
 
-### Visualizar
-Esconde os sinais do Markdown e mostra o texto formatado. Aqui os títulos enfim crescem: não há mais cursor para manter alinhado.
+**Exportar.** Markdown, texto simples, HTML, Word, PDF (pela impressão), copiar Markdown ou HTML. O nome do arquivo sai do título.
 
-### Aa
-Fonte, corpo do texto (14–28px) e papel nos temas Claro, Sépia e Escuro.
-
-### Exportar
-Markdown (`.md`), Texto simples (`.txt`), Página HTML (`.html`, com estilo embutido), Word (`.doc`) e PDF (via impressão, com CSS de página próprio). Também dá para copiar Markdown ou HTML direto para a área de transferência.
-
-O nome do arquivo sai do primeiro título do documento. O `Ctrl+P` do navegador também imprime o documento formatado, e não a tela.
+**Obsidian.** Escolha uma pasta do seu cofre e o Escritor grava cada nota como `.md` direto nela, sem plugin. O título vira o nome do arquivo; trocando o título, nasce um arquivo novo e o antigo fica. Funciona no Chrome e no Edge (é preciso a API de pastas do navegador).
 
 ---
 
 ## Atalhos
 
+No Mac, troque `Ctrl` por `⌘`, `Alt` por `⌥` e `Shift` por `⇧`. O próprio aplicativo já mostra os atalhos do jeito de cada sistema.
+
 | Atalho | O que faz |
 | --- | --- |
-| `Ctrl+B` | negrito |
-| `Ctrl+I` | itálico |
-| `Ctrl+K` | link |
-| `Ctrl+E` | visualizar / editar |
+| `Ctrl+O` | notas |
+| `Ctrl+Alt+N` | nova nota |
+| `Ctrl+,` | personalizar |
+| `Ctrl+B` / `Ctrl+I` / `Ctrl+K` | negrito, itálico, link |
+| `Ctrl+Shift+H` | grifar |
+| `Ctrl+E` | visualizar / voltar a escrever |
 | `Ctrl+D` | modo foco |
 | `Ctrl+T` | máquina de escrever |
-| `Ctrl+G` | classes gramaticais (liga/desliga) |
+| `Ctrl+G` | classes gramaticais |
 | `Ctrl+P` | ortografia |
-| `Ctrl+;` | corrigir a palavra sob o cursor |
 | `Ctrl+R` | revisão de estilo |
-| `Ctrl+S` | exportar Markdown |
-| `Ctrl+O` | abrir arquivo |
-| `Ctrl+Alt+N` | novo documento |
-| `Tab` / `Shift+Tab` | recuar / avançar bloco |
-| `Enter` | continua listas, numeração e citações |
-| `Esc` | fecha menus e painéis, sai da visualização |
-
-Arrastar um `.md` ou `.txt` para a janela também abre o arquivo.
+| `Ctrl+;` | corrigir a palavra sob o cursor |
+| `Ctrl+F` / `Ctrl+H` | buscar / substituir |
+| `Ctrl+Shift+O` | sumário |
+| `Ctrl+Shift+F` | tela cheia |
+| `Ctrl+S` | salvar no Obsidian (ou baixar o .md) |
+| `Esc` | fecha menus e painéis |
 
 ---
 
-## As fontes
+## Como funciona por dentro
 
-As três fontes da iA (**Duo**, **Mono** e **Quattro**) são livres (Apache 2.0, em [github.com/iaolo/iA-Fonts](https://github.com/iaolo/iA-Fonts)) e vêm **embutidas** em `fontes/`, em `woff2`. Não é preciso instalar nada no sistema, e o aplicativo tem a letra certa mesmo offline.
+O texto vive numa `<textarea>` com a cor transparente. Logo abaixo dela, um `<div>` espelha o mesmo conteúdo já realçado, com **exatamente** a mesma métrica: mesma fonte, corpo, entrelinha, espaçamento entre letras, padding e quebra de linha. Você vê o texto realçado, mas o cursor, a seleção, o desfazer e o corretor continuam sendo os **nativos do navegador**.
 
-A escolha entre elas não é só de gosto. Um título em negrito só pode existir aqui se o negrito ocupar **exatamente** a mesma largura do texto normal. Caso contrário, a linha quebraria num ponto no espelho e noutro na `<textarea>`, e o cursor sairia do lugar. Medido nas três:
+A regra que sustenta tudo: **o realce nunca altera a quantidade de caracteres**. Os sinais do Markdown (`#`, `**`, `==`) continuam lá, apenas recuados em cinza. Por isso o texto nunca pula e o cursor nunca desalinha. O grifo, por exemplo, é só uma cor de fundo atrás das letras.
+
+Cada linha é quebrada em **pedaços** (um trecho de texto com suas classes). Foco, revisão, ortografia e classes gramaticais partem o pedaço onde começam e somam uma classe; emendar os pedaços devolve a linha original, caractere por caractere.
+
+---
+
+## As fontes e os ícones
+
+As três fontes da iA (**Duo**, **Mono** e **Quattro**) são livres (Apache 2.0, [github.com/iaolo/iA-Fonts](https://github.com/iaolo/iA-Fonts)) e vêm embutidas em `fontes/`. Um título em negrito só pode existir aqui se o negrito ocupar exatamente a mesma largura do texto normal; por isso o padrão é a **Duo**, que tem negrito e itálico de mesma largura.
 
 | Fonte | Negrito | Itálico | No Escritor |
 | --- | --- | --- | --- |
-| **Duo** | mesma largura | mesma largura | padrão, com negrito e itálico reais |
+| **Duo** | mesma largura | mesma largura | padrão, negrito e itálico reais |
 | **Mono** | mesma largura | mesma largura | monoespaçada de verdade |
-| **Quattro** | mesma largura | **3,6% mais larga** | negrito real; a ênfase é marcada por cor, sem inclinação |
+| **Quattro** | mesma largura | 3,6% mais larga | ênfase marcada pela cor |
+| **Serifa** e **Inter** | não usa | não usa | ênfase e títulos pela cor |
 
-É por isso que o padrão é a **Duo**: é a que permite título em negrito e ênfase em itálico de verdade sem deslocar um pixel do cursor.
+A interface usa a **Inter** (SIL Open Font License 1.1), também em `fontes/`. Os ícones são do **Adwaita**, do projeto GNOME (GNU LGPL v3 ou CC BY-SA 3.0), em `icones.js`. As licenças estão em `fontes/LICENSE.md` e `fontes/LICENSE-INTER.md`.
 
 ---
 
@@ -115,27 +142,15 @@ A escolha entre elas não é só de gosto. Um título em negrito só pode existi
 
 | Arquivo | Conteúdo |
 | --- | --- |
-| `index.html` | estrutura da página |
-| `style.css` | fontes embutidas, papéis, cores, tipografia, impressão |
-| `app.js` | pedaços, foco, gramática, ortografia, estilo, Markdown, exportação, guia |
-| `fontes/` | iA Writer Duo, Mono e Quattro em `woff2` + licença |
+| `index.html` | a página: barra, menus, painéis, notas, botão direito |
+| `style.css` | fontes, papéis, cores, interface, impressão |
+| `app.js` | pedaços, foco, gramática, ortografia, estilo, Markdown, exportação, guia, menus |
+| `personalizar.js` | o painel Aa, estilos, sumário, buscar e substituir, pílulas |
+| `estudo.js` | notas, botão direito, imagens coladas |
+| `icones.js` | os ícones Adwaita |
+| `ponte.js` | a ligação com o [Caderno](https://cesteduardo.github.io/caderno/) (só age lá dentro) |
+| `fontes/` | iA Writer e Inter em `woff2`, com as licenças |
 
-O texto e as preferências são guardados no `localStorage` do navegador, nas chaves `escritor:texto` e `escritor:prefs`. Trocar de navegador ou limpar os dados do site apaga o rascunho. Para guardar de verdade, exporte.
+As notas, o texto aberto e as preferências ficam no `localStorage` do navegador (`escritor:notas`, `escritor:texto`, `escritor:prefs`); as imagens ficam no IndexedDB (`escritor-anexos`). Trocar de navegador ou limpar os dados do site apaga tudo: para guardar de verdade, ligue uma pasta do Obsidian ou exporte.
 
-### Ajustar as cores
-
-Todas as cores são variáveis CSS no topo de `style.css`, agrupadas por papel:
-
-```css
---tinta     /* o texto            */   --g-subst  /* substantivos */
---marca     /* sinais do Markdown */   --g-verbo  /* verbos       */
---apagado   /* o que o foco recua */   --g-adj    /* adjetivos    */
---c-link    /* links              */   --g-adv    /* advérbios    */
---c-codigo  /* código             */   --g-conj   /* conectivos   */
---c-enfase  /* ênfase na Quattro  */
---c-erro    /* ortografia         */   --c-estilo /* revisão      */
-```
-
-Largura da coluna, corpo do texto e entrelinha ficam em `--coluna`, `--tam` e `--altura`.
-
-No espírito do original, o realce é quase todo monocromático: a cor fica reservada ao que pede atenção, como um link, um erro ou uma classe gramatical que você pediu para ver.
+Projeto de código aberto e sem fins lucrativos, feito por GR Brands.

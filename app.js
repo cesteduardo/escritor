@@ -18,6 +18,29 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
+/* ── atalhos do jeito de cada sistema ─────────────────────────
+   No Mac (e no iPad com teclado) o atalho se escreve com os símbolos
+   da Apple, na ordem dela: ⌥ ⇧ ⌘ e a tecla, tudo junto (⇧⌘O). No
+   Windows e no Linux fica Ctrl+Shift+O. O teclado já aceita os dois:
+   Cmd e Ctrl fazem a mesma coisa. */
+const MAC = /Mac|iPhone|iPad|iPod/i.test(
+  (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent);
+function paraSO(txt){
+  if (!MAC || txt == null) return txt;
+  return String(txt).replace(/\b((?:(?:Ctrl|Alt|Shift)\+)+)(\w+|[^\s\w])/g, (_, mods, k) => {
+    const m = mods.split('+');
+    const sim = (m.includes('Alt') ? '⌥' : '') + (m.includes('Shift') ? '⇧' : '') + (m.includes('Ctrl') ? '⌘' : '');
+    return k.length > 1 && k === k.toLowerCase() ? sim + '+' + k : sim + k;   // ⌘+clique
+  });
+}
+function aplicarTeclasSO(raiz = document){
+  if (!MAC) return;
+  raiz.querySelectorAll('kbd').forEach(k => { if (/Ctrl|Alt|Shift/.test(k.textContent)) k.textContent = paraSO(k.textContent); });
+  raiz.querySelectorAll('[title]').forEach(n => { if (/Ctrl|Alt|Shift/.test(n.title)) n.title = paraSO(n.title); });
+}
+document.documentElement.classList.toggle('mac', MAC);
+document.addEventListener('DOMContentLoaded', () => aplicarTeclasSO());
+
 const editor   = $('#editor');
 const overlay  = $('#overlay');
 const scroller = $('#scroller');
@@ -36,10 +59,29 @@ const CHAVE_PREFS = 'escritor:prefs';
    o rascunho passa a ter precedência sobre o texto de abertura. */
 const CHAVE_SEU   = 'escritor:seu';
 
+/* Dentro do Caderno o Escritor é o editor das notas: o texto vem da nota
+   aberta e volta para ela (window.parent.CadernoPonte, mesma origem).
+   Sozinho, continua guardando no localStorage como sempre. */
+const PONTE = (() => {
+  try { return (window.parent !== window && window.parent.CadernoPonte) || null; }
+  catch { return null; }
+})();
+if (PONTE) document.documentElement.classList.add('embutido');
+
 const prefs = Object.assign({
   escopo: 'nenhum', maquina: false, classe: 'nenhuma',
   ortografia: true, estilo: true, tema: 'claro', fonte: 'duo',
-  corpo: 18, contagem: 0, visualizando: false, poeta: false
+  corpo: 18, contagem: 0, visualizando: false, poeta: false,
+  obsidianAuto: false,
+  // personalizar.js: cor de destaque, entrelinha, largura da coluna,
+  // sinais do Markdown, barra, rodapé, tipografia e meta de palavras
+  cor: 'padrao', altura: 1.75, coluna: 46, sinais: 'visiveis',
+  barraSome: true, rodape: true, tipografia: false, meta: 0,
+  // painel Personalizar: papel automático, cor própria, títulos,
+  // espaço entre letras, intensidade do foco, leitura e seus estilos
+  autoClaro: 'claro', autoEscuro: 'escuro', corPropria: '#2b7fff',
+  titulos: 'tinta', letras: 0, esmaecer: 'medio', ppm: 200,
+  mostrarTempo: true, meusEstilos: []
 }, lerPrefs());
 
 /* Migração da primeira versão, em que a ferramenta se chamava
@@ -395,6 +437,16 @@ function dividir(pedacos, re, montar){
 const REGRAS_INLINE = [
   // código entre crases — protegido de todo o resto
   [/(`+)([^`]+)\1/g, (m) => [pd(m[1],'mk t-cod'), pd(m[2],'t-cod'), pd(m[1],'mk t-cod')]],
+  // [[ligação]] para outra nota, livro ou aula do Caderno
+  [/\[\[([^\[\]\n]+)\]\]/g, (m) => [pd('[[','mk'), pd(m[1],'t-link t-wiki'), pd(']]','mk')]],
+  // #etiqueta
+  [/(^|[\s(])(#[A-Za-zÀ-ÖØ-öø-ÿ0-9_\/-]*[A-Za-zÀ-ÖØ-öø-ÿ_][A-Za-zÀ-ÖØ-öø-ÿ0-9_\/-]*)/g, (m) => [pd(m[1]), pd(m[2],'t-tag')]],
+  // ==grifo== (o mesmo do Obsidian)
+  [/==(?=\S)([^=\n]*?\S)==/g, (m) => [pd('==','mk'), pd(m[1],'t-grifo'), pd('==','mk')]],
+  // %%comentário%%: fica no arquivo, some na leitura e na exportação
+  [/%%([^%\n]*)%%/g, (m) => [pd('%%','mk t-coment'), pd(m[1],'t-coment'), pd('%%','mk t-coment')]],
+  // [^1]: chamada de nota de rodapé
+  [/\[\^([^\]\s]+)\]/g, (m) => [pd('[^','mk t-nota'), pd(m[1],'t-nota'), pd(']','mk t-nota')]],
   // imagem e link
   [/(!?)\[([^\]\n]*)\]\(([^)\n]*)\)/g, (m) => [
       pd(m[1] + '[','mk'), pd(m[2],'t-link'), pd(']','mk'),
@@ -714,8 +766,9 @@ function renderRevisao(){
   botao.hidden = !prefs.estilo || n === 0;
   if (botao.hidden){ fecharRevisao(); return; }
 
-  const aberto = $('#revisao').hidden === false;
-  botao.textContent = `${n} ponto${n > 1 ? 's' : ''} de atenção ${aberto ? '↓' : '↑'}`;
+  const aberto = $('#revisao').open;
+  botao.innerHTML = `<b>${n}</b> ponto${n > 1 ? 's' : ''} de atenção`;
+  $('#revConta').textContent = n.toLocaleString('pt-BR');
   if (aberto) preencherRevisao();
 }
 
@@ -727,21 +780,27 @@ function preencherRevisao(){
     </button>`).join('');
 }
 
+/* A lista abre no meio da tela, como os outros pop-ups. O <dialog> e
+   as funções abrirDialogo/fecharDialogo vêm do personalizar.js. */
 function abrirRevisao(){
   if (!apontamentos.length) return;
-  $('#revisao').hidden = false;
   $('#stRevisao').setAttribute('aria-expanded', 'true');
   preencherRevisao();
   renderRevisao();
+  const d = $('#revisao');
+  if (!d.open) abrirDialogo(d);
+  d.querySelector('.ponto')?.focus({ preventScroll: true });
 }
 function fecharRevisao(){
-  $('#revisao').hidden = true;
   $('#stRevisao').setAttribute('aria-expanded', 'false');
+  const d = $('#revisao');
+  if (d.open) fecharDialogo(d);
 }
 
 $('#stRevisao').onclick = () => {
-  if ($('#revisao').hidden) abrirRevisao(); else { fecharRevisao(); renderRevisao(); }
+  if (!$('#revisao').open) abrirRevisao(); else { fecharRevisao(); renderRevisao(); }
 };
+$('#revFechar').onclick = () => { fecharRevisao(); renderRevisao(); };
 $('#revisaoLista').addEventListener('click', (e) => {
   const botao = e.target.closest('.ponto');
   if (!botao) return;
@@ -755,6 +814,10 @@ $('#revisaoLista').addEventListener('click', (e) => {
   const [ini, fim] = destinos[indice];
   proximaOcorrencia.set(chave, (indice + 1) % destinos.length);
   alvoRevisao = ini;
+  // o pop-up sai antes: com ele aberto o editor está inerte
+  const dRev = $('#revisao');
+  if (dRev.open){ dRev.classList.remove('saindo'); dRev.close(); }
+  $('#stRevisao').setAttribute('aria-expanded', 'false');
   editor.focus({ preventScroll:true });
   editor.setSelectionRange(ini, fim);
   desenhar();
@@ -807,12 +870,16 @@ let precisaCentrar = false;
 function desenhar(){
   const texto = editor.value;
   const cursor = editor.selectionStart;
+  if (typeof ultimoDesenho !== 'undefined') ultimoDesenho = cursor + ':' + editor.selectionEnd + ':' + texto.length;
 
   let fa = -1, fb = -1;
   const comFoco = prefs.escopo !== 'nenhum' && !prefs.visualizando;
   if (comFoco) [fa, fb] = regiaoAtiva(texto, cursor);
 
   apontamentos = revisar(texto);
+  // buscar e substituir (personalizar.js): onde o termo aparece
+  const achados = typeof achadosDaBusca === 'function' ? achadosDaBusca(texto) : [];
+  const achadoAtual = achados.length && typeof achadoDaVez === 'function' ? achadoDaVez() : null;
 
   const linhas = texto.split('\n');
   function montarOverlay(){
@@ -829,6 +896,11 @@ function desenhar(){
           .flatMap(a => a.faixas || [[a.ini, a.fim]])
           .filter(([a, b]) => a < fim && b > ini);
         if (faixas.length) pedacos = aplicarFaixas(pedacos, ini, faixas, 'estilo', false);
+      }
+      if (achados.length){
+        const aqui = achados.filter(([a, b]) => a < fim && b > ini);
+        if (aqui.length) pedacos = aplicarFaixas(pedacos, ini, aqui, 'achado', false);
+        if (achadoAtual && achadoAtual[0] < fim && achadoAtual[1] > ini) pedacos = aplicarFaixas(pedacos, ini, [achadoAtual], 'achado-atual', false);
       }
       if (comFoco) pedacos = aplicarFaixas(pedacos, ini, [[fa, fb]], 'dim', true);
       const posicaoMarca = alvoRevisao !== null
@@ -858,29 +930,48 @@ function desenhar(){
   }
 }
 
+/* Um verso é uma linha com texto que não seja título nem separador:
+   o "# Soneto" no alto não entra na contagem do poema. */
+const ehVerso = (linha) => !!linha.trim() && !/^\s{0,3}#{1,6}\s/.test(linha) && !/^\s*([-*_])(\s*\1){2,}\s*$/.test(linha);
+
 function desenharNumerosLinha(texto, cursor){
+  const st = $('#stPoeta');
   if (!prefs.poeta){
     numerosLinha.innerHTML = '';
+    if (st) st.hidden = true;
     return;
   }
   const atual = texto.slice(0, cursor).split('\n').length - 1;
   const textos = texto.split('\n');
-  let verso = 0;
+  let verso = 0, estrofe = 0, anteriorEraVerso = false;
+  let versoAtual = 0, estrofeAtual = 0;
+  const linhas = [...overlay.querySelectorAll('.linha-fonte')];
+  const marcas = [];
 
-  numerosLinha.innerHTML = [...overlay.querySelectorAll('.linha-fonte')]
-    .map((linha, indice) => {
-      // O branco entre estrofes é estrutura, não verso: não recebe
-      // número e tampouco interrompe a contagem contínua do poema.
-      if (!textos[indice].trim()) return '';
-      verso++;
+  textos.forEach((t, indice) => {
+    // O branco entre estrofes é estrutura, não verso: não recebe
+    // número e tampouco interrompe a contagem contínua do poema.
+    if (!ehVerso(t)){ anteriorEraVerso = false; return; }
+    verso++;
+    if (!anteriorEraVerso) estrofe++;
+    anteriorEraVerso = true;
+    const estaAtual = indice === atual;
+    if (estaAtual){ versoAtual = verso; estrofeAtual = estrofe; }
+    // Como numa edição de poesia, a margem permanece silenciosa:
+    // marca-se cada quinto verso e, para orientação, o verso ativo.
+    if ((estaAtual || verso % 5 === 0) && linhas[indice])
+      marcas.push(`<span class="numero-linha${estaAtual ? ' atual' : ''}" style="top:${linhas[indice].offsetTop}px">${verso}</span>`);
+  });
+  numerosLinha.innerHTML = marcas.join('');
 
-      const estaAtual = indice === atual;
-      // Como numa edição de poesia, a margem permanece silenciosa:
-      // marca-se cada quinto verso e, para orientação, o verso ativo.
-      if (!estaAtual && verso % 5 !== 0) return '';
-      return `<span class="numero-linha${estaAtual ? ' atual' : ''}" ` +
-        `style="top:${linha.offsetTop}px">${verso}</span>`;
-    }).join('');
+  // no rodapé: onde o cursor está dentro do poema
+  if (st){
+    st.hidden = !verso;
+    const plural = (n, um, varios) => `${n.toLocaleString('pt-BR')} ${n === 1 ? um : varios}`;
+    st.innerHTML = versoAtual
+      ? `verso <b>${versoAtual}</b> de ${verso} · estrofe <b>${estrofeAtual}</b> de ${estrofe}`
+      : `<b>${plural(verso, 'verso', 'versos')}</b> · ${plural(estrofe, 'estrofe', 'estrofes')}`;
+  }
 }
 
 function centralizarCursor(){
@@ -914,7 +1005,7 @@ function atualizarNumeros(texto){
   // o rótulo recebe o número de verdade; o HTML entra depois
   $('#stCont').innerHTML = `<b>${n.toLocaleString('pt-BR')}</b> ${modo.rotulo(n)}`;
   const palavras = texto.trim() ? texto.trim().split(/\s+/).length : 0;
-  $('#stTempo').textContent = palavras ? Math.max(1, Math.round(palavras / 200)) : 0;
+  $('#stTempo').textContent = palavras ? Math.max(1, Math.round(palavras / (prefs.ppm || 200))) : 0;
 }
 
 /* Com o cursor em cima de uma palavra que a lista conhece, a forma
@@ -938,7 +1029,7 @@ function atualizarDica(texto, cursor){
   if (!certa) return;
 
   correcaoAtual = { ini, fim: ini + m[0].length, errada: m[0], certa };
-  dica.innerHTML = `${escapar(m[0])} → <b>${escapar(comOMesmoMolde(m[0], certa))}</b><kbd>Ctrl+;</kbd>`;
+  dica.innerHTML = `${escapar(m[0])} → <b>${escapar(comOMesmoMolde(m[0], certa))}</b><kbd>${paraSO('Ctrl+;')}</kbd>`;
   dica.hidden = false;
 }
 
@@ -980,8 +1071,18 @@ function acharInicioPalavra(texto, cursor){
    7. Markdown completo — visualização, exportação, impressão
    ═══════════════════════════════════════════════════════════ */
 
-function paraHTML(md){
-  const linhas = md.replace(/\r\n?/g,'\n').split('\n');
+function paraHTML(md, raiz = true){
+  md = md.replace(/\r\n?/g,'\n');
+  /* Notas de rodapé: as definições "[^1]: texto" saem do corpo e vão
+     para o fim, numeradas na ordem em que aparecem no texto. */
+  const defs = new Map(), ordem = [];
+  if (raiz){
+    md = md.replace(/^\[\^([^\]\s]+)\]:[ \t]?(.*)$/gm, (_, id, t) => { defs.set(id, t); return '\u0001'; })
+           .replace(/\n?\u0001/g, '');
+    md.replace(/\[\^([^\]\s]+)\]/g, (_, id) => { if (!ordem.includes(id)) ordem.push(id); return ''; });
+  }
+  const numeroDaNota = (id) => ordem.indexOf(id) + 1;
+  const linhas = md.split('\n');
   const out = [];
   let i = 0;
 
@@ -990,6 +1091,16 @@ function paraHTML(md){
     const cofre = [];
     const guardar = (h) => `\u0000${cofre.push(h) - 1}\u0000`;
     s = s.replace(/(`+)([^`]+)\1/g, (_, c, x) => guardar(`<code>${x}</code>`));
+    s = s.replace(/%%[^%\n]*%%/g, '');
+    s = s.replace(/\[\^([^\]\s]+)\]/g, (_, id) => {
+      const n = numeroDaNota(id);
+      return n ? guardar(`<sup class="nr" id="nr-ref-${n}"><a href="#nr-${n}">${n}</a></sup>`) : `[^${id}]`;
+    });
+    s = s.replace(/==(?=\S)([^=\n]*?\S)==/g, '<mark>$1</mark>');
+    s = s.replace(/\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g,
+      (_, alvo, rot) => guardar(`<a href="#" class="wikilink" data-nota="${alvo.replace(/"/g,'&quot;')}">${rot || alvo}</a>`));
+    s = s.replace(/(^|[\s(])#([A-Za-zÀ-ÖØ-öø-ÿ0-9_\/-]*[A-Za-zÀ-ÖØ-öø-ÿ_][A-Za-zÀ-ÖØ-öø-ÿ0-9_\/-]*)/g,
+      (_, a, t) => a + guardar(`<span class="tag-md">#${t}</span>`));
     s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
       (_, alt, url, t2) => guardar(`<img src="${url}" alt="${alt}"${t2 ? ` title="${t2}"` : ''}>`));
     s = s.replace(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
@@ -1044,7 +1155,7 @@ function paraHTML(md){
     if (/^\s*>/.test(l)){
       const bloco = [];
       while (i < linhas.length && /^\s*>/.test(linhas[i])) bloco.push(linhas[i++].replace(/^\s*>\s?/,''));
-      out.push(`<blockquote>${paraHTML(bloco.join('\n'))}</blockquote>`);
+      out.push(`<blockquote>${paraHTML(bloco.join('\n'), false)}</blockquote>`);
       continue;
     }
 
@@ -1084,6 +1195,10 @@ function paraHTML(md){
     out.push(`<p>${linhasPar.join('<br>')}</p>`);
   }
 
+  if (raiz && ordem.length){
+    out.push('<section class="notas-rodape"><hr><ol>' + ordem.map((id, k) =>
+      `<li id="nr-${k + 1}">${inline(defs.get(id) || '')} <a href="#nr-ref-${k + 1}" aria-label="voltar ao texto">↩</a></li>`).join('') + '</ol></section>');
+  }
   return out.join('\n');
 }
 
@@ -1096,6 +1211,8 @@ function paraHTMLPoeta(md){
     if (!linha.trim()){
       return '<div class="verso-preview vazio" aria-hidden="true"><span></span><span>&nbsp;</span></div>';
     }
+    // título e separador não são versos: entram sem número
+    if (!ehVerso(linha)) return `<div class="verso-preview"><span class="numero-preview"></span><span class="conteudo-preview">${paraHTML(linha)}</span></div>`;
     verso++;
     return `<div class="verso-preview"><span class="numero-preview">${verso}</span>` +
       `<span class="conteudo-preview">${paraHTML(linha)}</span></div>`;
@@ -1122,39 +1239,66 @@ function tituloDoTexto(){
           .trim() || 'documento';
 }
 
-/* ── assinatura do rodapé ──────────────────────────────────
-   Título e data, centralizados e discretos, ao pé da página;
-   abaixo, só a folha — que leva ao Escritor. */
+/* ── assinatura do rodapé ───────────────────────
+   Um filete curto abre o bloco; abaixo dele o título da obra em itálico,
+   a data em versalete e, por fim, a marca: o próprio favicon do Escritor
+   entre "Feito com" e o nome, levando ao endereço do aplicativo. */
 
-const ESCRITOR_URL = 'https://cesteduardo.github.io/escritor/';
+const ESCRITOR_URL = 'https://grbrands.com.br/escritor';
 
+/* O mesmo desenho de icons/favicon.svg, embutido para viajar dentro do
+   arquivo exportado. */
 const FOLHA_SVG =
-  `<svg class="folha" viewBox="0 0 20 20" width="15" height="15" aria-label="Escritor" ` +
-  `role="img" fill="none" stroke="currentColor" stroke-width="1.15" ` +
-  `stroke-linecap="round" stroke-linejoin="round">` +
-  `<path d="M11.5 2.5H5.5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V6.5z"/>` +
-  `<path d="M11.5 2.5V6.5h4"/></svg>`;
+  `<svg class="folha" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" ` +
+  `role="img" focusable="false">` +
+  `<path d="M3.6 1.6h5.2l3.6 3.6v9.2a.6.6 0 0 1-.6.6H3.6a.6.6 0 0 1-.6-.6V2.2a.6.6 0 0 1 .6-.6z" ` +
+  `fill="#F7F7F7" stroke="#0E0E10" stroke-width="1.1" stroke-linejoin="round"/>` +
+  `<path d="M8.8 1.6v3.6h3.6" fill="none" stroke="#0E0E10" stroke-width="1.1" ` +
+  `stroke-linejoin="round"/>` +
+  `<path d="M5.4 8.2h5.2M5.4 10.6h5.2M5.4 13h3" stroke="#93939C" stroke-width="1" ` +
+  `stroke-linecap="round"/></svg>`;
+
+/* O Word não desenha SVG: para o .doc o mesmo favicon vai em PNG. */
+const FOLHA_PNG =
+  `<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAP1BMVEX///8VFRgZGRoWFhgcHB4vLzFUVFZeXmA6Ojw/P0Fvb3GKiowuLjBYWFqxsbPPz9Hf3+Hu7u9/f4A9PT++vsNzUJ+aAAAAAXRSTlMAQObYZgAAAftJREFUWMPtl8uagyAMhYXKpUECtr7/s84XdCwqQmxnZjVnUdzwNwknGLvuXzuJovjb5a0kyUUIeevVXn3fE4IHuCmltTaZtCYEkyCkvWsDbiO4QBCD9eAcYiAhrYgrgVEHMXgNDkPMFJAASvWcSorBG4cYx0wE0OqulWIQZkDYAZyhumqt2mUQg4c9ICYAABjfJpwCDDgARhY1gIMlC1EHUA3GUgoPykKruh/OAQYA3AOMqjuqdAoZgLKoE4qAQPuMIUQCkCdPAc8SAB1QT6XOuidXn4ZQqgE5CRIhKbX37RIgIrqEeHV3DQBHALXlq7lB1wDPAmCMS2/Pou6+CBjHrLlTd19LYYdC90YEO1/xIohbZRHwAPFEoZ7CauWYSn/QBUA4UwswXyi0fzroGmDCl9LzguAD8r/eRNA+hY9q8H0fvH2Mh1v50Jp/BKBg5+4L6xqWFDhFzHwQ3vQBFvUxYOL6IDlxmg24rMmLF4x04iT+Mf6AkUoX0hUjFfc3Ac88hfUW2hCYgG0N+YDhUwArAvObgNWJC2D6JvCPkUbdkF6imBs4rifTAFgatjGEQhsuE3z99S6tN0TIRwrnXEZyzui+BlCHD47d50d1QqEclE9DYVE0I/nqzC2EtNb6iqy1sjqzCymHupojf1Nd9xGhtT2H5A8d/Zb3fwFXSWyCqvd8NQAAAABJRU5ErkJggg==" ` +
+  `width="13" height="13" alt="" border="0" ` +
+  `style="border:0;vertical-align:middle">`;
 
 function dataPorExtenso(){
   return new Date().toLocaleDateString('pt-BR',
     { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-/* `glifo` troca o desenho por um caractere onde SVG não chega (Word). */
-function assinaturaHTML(glifo){
-  const t = tituloLegivel();
-  const marca = glifo || FOLHA_SVG;
+/* `paraWord` troca o SVG pelo PNG e a coluna flex por uma tabela: o Word
+   não entende nem um nem outro. */
+function assinaturaHTML(paraWord){
+  const t = escapar(tituloLegivel());
+  const data = escapar(dataPorExtenso());
+  const feito = paraWord
+    ? `Feito com ${FOLHA_PNG} Escritor`
+    : `Feito com${FOLHA_SVG}Escritor`;   // o gap do flex faz os espaços
 
-  // O Word não faz flex: a assinatura centralizada vira uma tabela.
-  if (glifo) return `<hr class="assinatura-filete">` +
-    `<table class="assinatura"><tr><td align="center">${escapar(t)}<br>` +
-    `${escapar(dataPorExtenso())}<br>` +
-    `<a href="${ESCRITOR_URL}">Escrito no ${marca}</a></td></tr></table>`;
+  /* No Word não há flex, ::after nem folha de estilo confiável: o filete
+     vira uma tabelinha centrada e cada linha carrega o próprio estilo. */
+  if (paraWord) return (
+    `<table align="center" width="64" cellspacing="0" cellpadding="0" ` +
+      `style="margin:34pt auto 15pt;border-collapse:collapse"><tr>` +
+      `<td style="border:0;border-top:1pt solid #cfcfcf;padding:0;` +
+      `font-size:1pt;line-height:1pt">&nbsp;</td></tr></table>` +
+    (t ? `<p align="center" style="margin:0;font:italic 11.5pt Georgia,serif;color:#333">` +
+         `${t}</p>` : '') +
+    `<p align="center" style="margin:6pt 0 0;font-family:Calibri,Arial,sans-serif;` +
+      `font-size:7.5pt;letter-spacing:1.4pt;color:#9a9a9a">${data.toUpperCase()}</p>` +
+    `<p align="center" style="margin:13pt 0 0;font-family:Calibri,Arial,sans-serif;` +
+      `font-size:8.5pt;color:#777">` +
+      `<a href="${ESCRITOR_URL}" style="color:#777;text-decoration:none">${feito}</a></p>`
+  );
 
   return `<footer class="assinatura">` +
-    `<span class="assinatura-data">${escapar(dataPorExtenso())}</span>` +
-    `<span class="assinatura-marca"><a href="${ESCRITOR_URL}">Escrito no ${marca}</a></span>` +
-    `<span class="assinatura-obra">${escapar(t)}</span>` +
+    `<span class="assinatura-fio" aria-hidden="true"></span>` +
+    (t ? `<span class="assinatura-obra">${t}</span>` : '') +
+    `<span class="assinatura-data">${data}</span>` +
+    `<span class="assinatura-marca"><a href="${ESCRITOR_URL}">${feito}</a></span>` +
     `</footer>`;
 }
 
@@ -1173,7 +1317,10 @@ body{max-width:38rem;margin:5rem auto;padding:0 1.4rem;
   font:18px/1.7 Georgia,"Iowan Old Style","Times New Roman",serif;color:#16181d;background:#fff}
 h1,h2,h3,h4{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
   line-height:1.28;margin:2.1em 0 .7em}
-h1{font-size:1.9em;margin-top:0}h2{font-size:1.45em}h3{font-size:1.18em}
+h2{font-size:1.45em}h3{font-size:1.18em}
+h1{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-weight:400;
+  font-size:2.05em;letter-spacing:-.005em;margin:0 0 1.5em}
+h1::after{content:"";display:block;width:3.2rem;height:1px;background:#dcdfe4;margin-top:.72em}
 p{margin:0 0 1.25em}
 a{color:#0b5fff}code{font:.9em/1.5 ui-monospace,Menlo,Consolas,monospace;
   background:#f2f3f5;padding:.1em .35em;border-radius:4px}
@@ -1182,20 +1329,26 @@ pre code{background:none;padding:0}
 blockquote{margin:0 0 1.25em;padding-left:1.15em;border-left:2px solid #d3d6dc;color:#4a4f57}
 ul,ol{padding-left:1.4em}li{margin:.3em 0}
 hr{border:0;border-top:1px solid #e9ebef;margin:2.4em 0}
+mark{background:#fff1a8;color:inherit;padding:0 .12em;border-radius:3px}
+sup.nr a{text-decoration:none;font-size:.75em}
+.notas-rodape{margin-top:3em;font-size:.88em;color:#4a4f57}
+.notas-rodape hr{width:4rem;margin:0 0 1em}
 img{max-width:100%;border-radius:8px}
 table{width:100%;border-collapse:collapse;font-size:.94em}
 th,td{border:1px solid #e9ebef;padding:.45em .7em;text-align:left}
-.assinatura{margin:4.5rem 0 1rem;padding-top:1rem;
-  display:flex;flex-direction:column;align-items:center;gap:.25em;text-align:center;
-  border-top:1px solid #e9ebef;
+.assinatura{margin:5.5rem 0 1.5rem;
+  display:flex;flex-direction:column;align-items:center;gap:.5em;text-align:center;
   font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
-  font-size:.78em;line-height:1.6;color:#8a9099}
-.assinatura-data{text-align:center;font-variant-numeric:oldstyle-nums}
-.assinatura-obra{order:-1;text-align:center;color:#5b6069;letter-spacing:.02em}
-.assinatura-marca a{color:inherit;text-decoration:none;
-  display:inline-flex;align-items:center;gap:.4em}
-.assinatura-marca a:hover{color:#3d434c}
-.assinatura .folha{vertical-align:middle;opacity:.85}
+  font-size:.8em;line-height:1.6;color:#8a9099}
+.assinatura-fio{width:3.2rem;height:1px;background:#dcdfe4;margin-bottom:1.5rem}
+.assinatura-obra{font:italic 1.16em/1.45 Georgia,"Iowan Old Style","Times New Roman",serif;
+  color:#2f333b;max-width:24rem}
+.assinatura-data{font-size:.82em;letter-spacing:.16em;text-transform:uppercase;color:#a3a9b1}
+.assinatura-marca{margin-top:.95em;letter-spacing:.03em}
+.assinatura-marca a{color:#6f7681;text-decoration:none;
+  display:inline-flex;align-items:center;gap:.45em}
+.assinatura-marca a:hover{color:#2f333b}
+.assinatura .folha{flex:none;vertical-align:middle}
 `;
 
 async function exportar(tipo){
@@ -1204,16 +1357,19 @@ async function exportar(tipo){
 
   if (tipo === 'md')  return baixar(`${nome}.md`,  md, 'text/markdown;charset=utf-8');
   if (tipo === 'txt') return baixar(`${nome}.txt`,
-    md.replace(/^#{1,6}\s+/gm,'').replace(/(\*\*|__|~~|[*_`])/g,'')
+    md.replace(/%%[^%\n]*%%/g,'').replace(/==([^=\n]+)==/g,'$1').replace(/^#{1,6}\s+/gm,'').replace(/(\*\*|__|~~|[*_`])/g,'')
       .replace(/^\s*>\s?/gm,'').replace(/\[([^\]]*)\]\([^)]*\)/g,'$1'),
     'text/plain;charset=utf-8');
 
+  // imagens coladas moram no navegador: na exportação elas vão dentro do arquivo
+  const embutir = async (h) => typeof embutirAnexos === 'function' ? embutirAnexos(h) : h;
+
   if (tipo === 'html'){
-    return baixar(`${nome}.html`,
+    return baixar(`${nome}.html`, await embutir(
       `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">` +
       `<meta name="viewport" content="width=device-width,initial-scale=1">` +
       `<title>${escapar(nome)}</title><style>${CSS_EXPORT}</style></head>` +
-      `<body>\n${paraHTML(md)}\n${assinaturaHTML()}\n</body></html>`,
+      `<body>\n${paraHTML(md)}\n${assinaturaHTML()}\n</body></html>`),
       'text/html;charset=utf-8');
   }
 
@@ -1223,23 +1379,20 @@ async function exportar(tipo){
       `xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">` +
       `<title>${escapar(nome)}</title><style>@page{size:A4;margin:2.4cm 2.2cm}` +
       `body{font:12pt/1.65 Georgia,serif}` +
-      `h1,h2,h3{font-family:Calibri,Arial,sans-serif;color:#1a1a1a}` +
+      `h2,h3{font-family:Calibri,Arial,sans-serif;color:#1a1a1a}` +
+      `h1{font-family:Georgia,serif;font-weight:normal;font-size:21pt;color:#1a1a1a;` +
+      `margin:0 0 18pt}` +
       `blockquote{margin-left:0;padding-left:12pt;border-left:2pt solid #999;color:#444}` +
       `code,pre{font-family:Consolas,monospace;font-size:10.5pt}` +
       `pre{background:#f4f4f4;padding:8pt}` +
       `table{border-collapse:collapse}th,td{border:.5pt solid #999;padding:4pt}` +
-      // o Word não desenha SVG: a folha vira glifo
-      `.assinatura-filete{margin-top:36pt;border:0;border-top:.5pt solid #ccc}` +
-      `table.assinatura{width:100%;margin-top:8pt;text-align:center;` +
-      `font-family:Calibri,Arial,sans-serif;font-size:9pt;color:#777}` +
-      `table.assinatura td{border:0;padding:0}` +
-      `table.assinatura a{color:#777;text-decoration:none}` +
-      `</style></head><body>${paraHTML(md)}${assinaturaHTML('🗎')}</body></html>`;
-    return baixar(`${nome}.doc`, '﻿' + doc, 'application/msword;charset=utf-8');
+      `</style></head><body>${paraHTML(md)}${assinaturaHTML(true)}</body></html>`;
+    return baixar(`${nome}.doc`, '﻿' + await embutir(doc), 'application/msword;charset=utf-8');
   }
 
   if (tipo === 'pdf'){
     prepararImpressao();
+    if (typeof mostrarAnexos === 'function') await mostrarAnexos($('#printView'));
     // O endereço do arquivo no alto da página é do navegador, não daqui:
     // só a caixa "cabeçalhos e rodapés" do diálogo o remove — uma vez, e fica.
     avisar('Na janela de impressão, desmarque “cabeçalhos e rodapés”', 6000);
@@ -1248,7 +1401,7 @@ async function exportar(tipo){
   }
 
   if (tipo === 'copy' || tipo === 'copyhtml'){
-    const conteudo = tipo === 'copy' ? md : paraHTML(md);
+    const conteudo = tipo === 'copy' ? md : await embutir(paraHTML(md));
     try {
       await navigator.clipboard.writeText(conteudo);
       avisar(tipo === 'copy' ? 'Markdown copiado' : 'HTML copiado');
@@ -1286,6 +1439,123 @@ function avisar(msg, ms = 1900){
 }
 
 /* ═══════════════════════════════════════════════════════════
+   9b. Folha: o pop-up modal
+   ─────────────────────────────────────────────────────────
+   O confirm() do navegador aparecia como caixa do sistema, com
+   o endereço do site no cabeçalho e botões que não são os
+   nossos — dentro de uma superfície de escrita isso quebra a
+   ilusão inteira. No lugar dele entra a folha: o mesmo desenho
+   do pop-up de busca dos outros apps da casa (Ctrl+K), com o
+   fundo desfocado, o painel centrado e o chip "esc".
+
+   Uma folha por vez. abrirFolha devolve uma promessa que se
+   resolve com o data-valor do botão apertado, ou com null se
+   a pessoa fechou pelo Esc, pelo X do fundo ou pelo Cancelar.
+   ═══════════════════════════════════════════════════════════ */
+
+const VERSAO = '2.0.0';
+const REPO   = 'https://github.com/cesteduardo/escritor';
+
+let folha = null, resolverFolha = null, focoAntesDaFolha = null;
+
+function fecharFolha(valor = null){
+  if (!folha || folha.hidden) return;
+  folha.hidden = true;
+  folha.textContent = '';
+  document.documentElement.classList.remove('folha-aberta');
+  /* devolve o foco a quem abriu: sem isto o Tab recomeçava do topo da
+     página, e o cursor não voltava para o texto */
+  if (focoAntesDaFolha && focoAntesDaFolha.focus) focoAntesDaFolha.focus();
+  focoAntesDaFolha = null;
+  const responder = resolverFolha;
+  resolverFolha = null;
+  if (responder) responder(valor);
+}
+
+function abrirFolha(html){
+  if (!folha){
+    folha = document.createElement('div');
+    folha.className = 'folha';
+    folha.hidden = true;
+    document.body.appendChild(folha);
+    /* só o fundo fecha; um clique dentro do painel não */
+    folha.addEventListener('click', (e) => { if (e.target === folha) fecharFolha(null); });
+  }
+  fecharFolha(null);
+  focoAntesDaFolha = document.activeElement;
+  folha.innerHTML = html;
+  folha.hidden = false;
+  document.documentElement.classList.add('folha-aberta');
+
+  const promessa = new Promise((resolve) => { resolverFolha = resolve; });
+  folha.querySelectorAll('[data-valor]').forEach((b) => {
+    b.onclick = () => fecharFolha(b.dataset.valor);
+  });
+  /* o foco vai para a ação principal, e não para o Cancelar: quem chegou
+     aqui pelo teclado termina a frase com um Enter */
+  const alvo = folha.querySelector('.principal') || folha.querySelector('button');
+  if (alvo) alvo.focus();
+  return promessa;
+}
+
+function focaveisDaFolha(){
+  return [...folha.querySelectorAll('a[href],button,[tabindex]:not([tabindex="-1"])')];
+}
+
+const escapaHTML = (t) => String(t).replace(/[&<>"]/g,
+  (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+
+/* Uma pergunta de sim ou não. Devolve true só se a ação foi confirmada. */
+async function perguntar({ titulo, texto, acao, cancelar = 'Cancelar' }){
+  const escolha = await abrirFolha(
+    '<div class="folha-painel" role="dialog" aria-modal="true" aria-label="' + escapaHTML(titulo) + '">' +
+      '<div class="folha-topo">' +
+        '<h2 class="folha-titulo">' + escapaHTML(titulo) + '</h2>' +
+        '<kbd>esc</kbd>' +
+      '</div>' +
+      '<div class="folha-corpo"><p>' + escapaHTML(texto) + '</p></div>' +
+      '<div class="folha-pe">' +
+        '<button type="button" data-valor="">' + escapaHTML(cancelar) + '</button>' +
+        '<button type="button" class="principal" data-valor="sim">' + escapaHTML(acao) + '</button>' +
+      '</div>' +
+    '</div>');
+  return escolha === 'sim';
+}
+
+const OCTOCAT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>';
+
+/* O painel Sobre. Não é um menu: é uma folha, porque o texto aqui é para
+   ser lido, não para ser escolhido. */
+function abrirSobre(){
+  return abrirFolha(
+    '<div class="folha-painel folha-larga" role="dialog" aria-modal="true" aria-label="Sobre o Escritor">' +
+      '<div class="folha-topo">' +
+        '<h2 class="folha-titulo">Escritor</h2>' +
+        '<span class="folha-versao">v' + VERSAO + '</span>' +
+        '<kbd>esc</kbd>' +
+      '</div>' +
+      '<div class="folha-corpo">' +
+        '<p>Um caderno de escrita e estudo em Markdown, no espírito do iA Writer: ' +
+          'realce de sintaxe sem tirar o cursor do lugar, modo foco, revisão de ' +
+          'ortografia e estilo, várias notas, grifo e notas de rodapé no botão direito, ' +
+          'imagens coladas e gravação direta numa pasta do Obsidian.</p>' +
+        '<p>É um projeto de <b>código aberto e sem fins lucrativos</b>. Não há conta, ' +
+          'anúncio, cobrança nem rastreamento: o que você escreve fica no seu ' +
+          'navegador e só sai dele quando você exporta ou salva na pasta.</p>' +
+        '<a class="folha-link" href="' + REPO + '" target="_blank" rel="noopener noreferrer">' +
+          OCTOCAT + '<b>cesteduardo/escritor</b><small>abrir ↗</small></a>' +
+        '<p class="fraco" style="margin-top:.9rem">' +
+          'As fontes do texto são as iA Writer (Duo, Mono e Quattro), sob licença Apache 2.0; ' +
+          'a da interface é a Inter (OFL) e os ícones são do Adwaita, do GNOME (LGPL ou CC BY-SA). ' +
+          'Feito por GR Brands.</p>' +
+      '</div>' +
+      '<div class="folha-pe">' +
+        '<button type="button" class="principal" data-valor="">Fechar</button>' +
+      '</div>' +
+    '</div>');
+}
+
+/* ═══════════════════════════════════════════════════════════
    10. Preferências e controles
    ═══════════════════════════════════════════════════════════ */
 
@@ -1300,8 +1570,19 @@ const ROTULO_CLASSE = {
   nenhuma:'Realce', todas:'Classes', 'g-subst':'Substantivos',
   'g-verbo':'Verbos', 'g-adj':'Adjetivos', 'g-adv':'Advérbios', 'g-conj':'Conectivos'
 };
-const COR_TEMA = { claro:'#ffffff', sepia:'#f6f0e4', escuro:'#191a1c' };
+const COR_TEMA = { claro:'#ffffff', papel:'#fbf8f1', sepia:'#f6f0e4', nevoa:'#eef1f4', escuro:'#191a1c', noite:'#0f1520', grafite:'#2a2b2f', contraste:'#000000' };
 const CORPO_MIN = 14, CORPO_MAX = 28;
+
+/* Ícones da barra: traço de 1,5 num quadro de 20, cantos redondos,
+   no espírito dos SF Symbols. O rótulo vem ao lado e some no celular,
+   onde o ícone sozinho já diz o que é. */
+const ICONE = {
+  foco:     '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.2V5.5a2 2 0 0 1 2-2h1.7M12.8 3.5h1.7a2 2 0 0 1 2 2v1.7M16.5 12.8v1.7a2 2 0 0 1-2 2h-1.7M7.2 16.5H5.5a2 2 0 0 1-2-2v-1.7"/><circle cx="10" cy="10" r="2.3"/></svg>',
+  realce:   '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.4 3.6 4 4-6.5 6.5-4-4Z"/><path d="m5.9 10.1-1.6 3.6 2 2 3.6-1.6"/><path d="M11.5 16.5h5"/></svg>',
+  ver:      '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.4 10s2.9-5.2 7.6-5.2 7.6 5.2 7.6 5.2-2.9 5.2-7.6 5.2S2.4 10 2.4 10Z"/><circle cx="10" cy="10" r="2.4"/></svg>',
+  escrever: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.7 4.3 3 3-8.5 8.5-3.8.8.8-3.8Z"/><path d="m11.2 5.8 3 3"/></svg>',
+};
+const rotuloBarra = (icone, texto) => ICONE[icone] + '<span class="rot">' + texto + '</span>';
 
 function aplicarPrefs(){
   corpo.dataset.theme   = prefs.tema;
@@ -1315,17 +1596,17 @@ function aplicarPrefs(){
   document.querySelector('meta[name=theme-color]').content = COR_TEMA[prefs.tema];
 
   const comFoco = prefs.escopo !== 'nenhum';
-  $('#btnFoco').textContent = ROTULO_ESCOPO[prefs.escopo];
+  $('#btnFoco').innerHTML = rotuloBarra('foco', ROTULO_ESCOPO[prefs.escopo]);
   $('#btnFoco').classList.toggle('ativo', comFoco || prefs.maquina);
 
   const comRealce = prefs.classe !== 'nenhuma';
-  $('#btnRealce').textContent = ROTULO_CLASSE[prefs.classe];
+  $('#btnRealce').innerHTML = rotuloBarra('realce', ROTULO_CLASSE[prefs.classe]);
   $('#btnRealce').classList.toggle('ativo', comRealce);
 
   $('#togVer').setAttribute('aria-pressed', prefs.visualizando);
-  // o trecho em .so-largo some nas telas estreitas: "Visualizar" → "Vis"
-  $('#togVer').innerHTML = prefs.visualizando
-    ? 'Editar' : 'Vis<span class="so-largo">ualizar</span>';
+  // lendo, o olho vira caneta: o botão mostra para onde ele leva
+  $('#togVer').innerHTML = prefs.visualizando ? rotuloBarra('escrever', 'Escrever') : rotuloBarra('ver', 'Visualizar');
+  $('#togVer').title = paraSO(prefs.visualizando ? 'Voltar a escrever (Ctrl+E)' : 'Visualizar (Ctrl+E)');
   $('#corpoAgora').textContent = prefs.corpo + 'px';
   $('#togPoeta').setAttribute('aria-pressed', String(prefs.poeta));
   regua.hidden = !prefs.poeta;
@@ -1333,13 +1614,14 @@ function aplicarPrefs(){
   // marcas de estado dentro dos menus
   $$('[data-escopo]').forEach(b => b.setAttribute('aria-checked', b.dataset.escopo === prefs.escopo));
   $$('[data-classe]').forEach(b => b.setAttribute('aria-checked', b.dataset.classe === prefs.classe));
-  $$('[data-tema]').forEach(b => b.setAttribute('aria-checked', b.dataset.tema === prefs.tema));
-  $$('[data-fonte]').forEach(b => b.setAttribute('aria-checked', b.dataset.fonte === prefs.fonte));
+  $$('button[data-tema]').forEach(b => b.setAttribute('aria-checked', b.dataset.tema === prefs.tema));
+  $$('button[data-fonte]').forEach(b => b.setAttribute('aria-checked', b.dataset.fonte === prefs.fonte));
   $$('[data-alterna]').forEach(b => b.setAttribute('aria-checked', !!prefs[b.dataset.alterna]));
 
   // O corretor nativo do navegador é a fonte do sublinhado vermelho.
   editor.setAttribute('spellcheck', prefs.ortografia ? 'true' : 'false');
 
+  if (typeof aplicarExtras === 'function') aplicarExtras();
   salvarPrefs();
 }
 
@@ -1359,6 +1641,7 @@ function definirVisualizacao(ativo){
   if (ativo){
     preview.classList.toggle('poeta', prefs.poeta);
     preview.innerHTML = prefs.poeta ? paraHTMLPoeta(editor.value) : paraHTML(editor.value);
+    if (typeof mostrarAnexos === 'function') mostrarAnexos(preview);
     preview.querySelectorAll('a[href^="http"]').forEach(a => {
       a.target = '_blank'; a.rel = 'noopener noreferrer';
     });
@@ -1385,7 +1668,9 @@ function larguraEspaco(){
   const canvas = larguraEspaco.canvas || (larguraEspaco.canvas = document.createElement('canvas'));
   const ctx = canvas.getContext('2d');
   ctx.font = `${estilo.fontWeight} ${estilo.fontSize} ${estilo.fontFamily}`;
-  return Math.max(4, ctx.measureText(' ').width);
+  // o espaço entre letras soma em cada caractere, inclusive no espaço
+  const extra = parseFloat(estilo.letterSpacing) || 0;
+  return Math.max(4, ctx.measureText(' ').width + extra);
 }
 
 function colunasNoCursor(){
@@ -1522,26 +1807,58 @@ $('#togPoeta').onclick = () => {
   if (!prefs.visualizando) editor.focus();
 };
 
-/* Tela cheia: some a moldura do navegador e sobra a folha.
-   Onde a API não existe (iOS), o botão nem aparece. */
-const btnTela = $('#btnTela');
-if (!document.documentElement.requestFullscreen){
-  btnTela.hidden = true;
-} else {
-  btnTela.onclick = () => {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else document.documentElement.requestFullscreen()
-           .catch(() => avisar('O navegador não permitiu a tela cheia'));
-  };
-  // F11 e Esc mudam o estado sem passar pelo botão: seguimos o evento
-  document.addEventListener('fullscreenchange', () => {
-    const cheia = !!document.fullscreenElement;
-    document.body.dataset.tela = cheia ? '1' : '0';
-    btnTela.setAttribute('aria-pressed', String(cheia));
-    btnTela.title = cheia ? 'Sair da tela cheia' : 'Tela cheia';
-    btnTela.setAttribute('aria-label', btnTela.title);
-  });
+/* ── Tela cheia ───────────────────────────────────────────────
+   Some a moldura do navegador e sobra a folha. Funciona em três
+   caminhos, do melhor para o possível:
+   1. a API de tela cheia (computador, Android), com o prefixo webkit
+      para o Safari do iPad;
+   2. dentro do Caderno, quem vai para a tela cheia é a página de fora
+      (o iframe sozinho não pode), e o estado é lido de lá;
+   3. onde não existe API nenhuma (o Safari do iPhone), o modo imersivo:
+      a barra e o rodapé saem e fica só um botão discreto para voltar. */
+const docDaTela = (() => {
+  try { if (PONTE && window.parent !== window && window.parent.document) return window.parent.document; } catch (e) {}
+  return document;
+})();
+const elTelaCheia = () => docDaTela.fullscreenElement || docDaTela.webkitFullscreenElement || null;
+const pedirTela = (el) => (el.requestFullscreen || el.webkitRequestFullscreen || null);
+function telaAtiva(){ return !!elTelaCheia() || corpo.dataset.imersivo === '1'; }
+
+function marcarTela(){
+  const cheia = telaAtiva();
+  corpo.dataset.tela = cheia ? '1' : '0';
+  const titulo = cheia ? 'Sair da tela cheia' : 'Tela cheia';
+  for (const b of $$('#btnTela, #btnTelaBarra')){
+    b.setAttribute('aria-pressed', String(cheia));
+    b.title = titulo + (b.id === 'btnTelaBarra' ? paraSO(' (Ctrl+Shift+F)') : '');
+    b.setAttribute('aria-label', titulo);
+  }
 }
+function definirImersivo(on){
+  corpo.dataset.imersivo = on ? '1' : '0';
+  marcarTela();
+  if (on) avisar('Para sair, toque no botão do canto', 2600);
+}
+function alternarTela(){
+  if (elTelaCheia()){
+    (docDaTela.exitFullscreen || docDaTela.webkitExitFullscreen).call(docDaTela);
+    return;
+  }
+  if (corpo.dataset.imersivo === '1'){ definirImersivo(false); return; }
+  const el = docDaTela.documentElement;
+  const pedir = pedirTela(el);
+  if (!pedir){ definirImersivo(true); return; }
+  try {
+    const r = pedir.call(el, { navigationUI: 'hide' });
+    if (r && r.catch) r.catch(() => definirImersivo(true));
+  } catch (e) { definirImersivo(true); }
+}
+$('#btnTela').onclick = alternarTela;
+$('#btnTelaBarra').onclick = alternarTela;
+$('#telaSair').onclick = alternarTela;
+// F11, Esc e o gesto do sistema mudam o estado sem passar pelo botão
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) docDaTela.addEventListener(ev, marcarTela);
+marcarTela();
 
 $('#stCont').onclick = () => {
   prefs.contagem = (prefs.contagem + 1) % CONTAGENS.length;
@@ -1549,18 +1866,129 @@ $('#stCont').onclick = () => {
   atualizarNumeros(editor.value);
 };
 
-// menus
+/* ── menus: pop-ups no meio da tela ───────────────────────────
+   Cada menu da barra é um <dialog> aberto com showModal: vai para a
+   camada de cima (o desfoque da barra não o prende), o resto da página
+   fica inerte e o Esc fecha. A classe .aberto continua sendo o estado:
+   quem quiser fechar os menus (a ponte, o painel Aa) só tira a classe,
+   e o observador abaixo fecha o diálogo junto. */
+const reduzMov = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function itensDoMenu(pop){ return [...pop.querySelectorAll('.mp-corpo button, .mp-abas button')].filter(b => !b.hidden && b.offsetParent !== null); }
+
+/* Setas em qualquer direção: vai para o item mais perto daquele lado,
+   olhando a posição real na tela. Serve para os cartões lado a lado do
+   Foco, as duas colunas do Realce e a grade do Documento. */
+function vizinhoNaDirecao(itens, atual, tecla){
+  const a = atual.getBoundingClientRect();
+  const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let melhor = null, menor = Infinity;
+  for (const b of itens){
+    if (b === atual) continue;
+    const r = b.getBoundingClientRect();
+    const dx = r.left + r.width / 2 - ax, dy = r.top + r.height / 2 - ay;
+    const ok = tecla === 'ArrowRight' ? dx > 4 : tecla === 'ArrowLeft' ? dx < -4 : tecla === 'ArrowDown' ? dy > 4 : dy < -4;
+    if (!ok) continue;
+    const horizontal = tecla === 'ArrowRight' || tecla === 'ArrowLeft';
+    const d = horizontal ? Math.abs(dx) + Math.abs(dy) * 3 : Math.abs(dy) + Math.abs(dx) * 3;
+    if (d < menor){ menor = d; melhor = b; }
+  }
+  return melhor;
+}
+
+/* Documento: as seções são abas; a pílula delas desliza (personalizar.js) */
+let abaDoc = 'arquivo';
+function mostrarAbaDoc(aba){
+  abaDoc = aba;
+  $$('#menuMais .mp-abas [data-aba]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.aba === aba)));
+  $$('#menuMais .mp-pagina').forEach(pg => { pg.hidden = pg.dataset.aba !== aba; });
+  if (typeof medirPilulas === 'function') medirPilulas();
+}
+$$('#menuMais .mp-abas [data-aba]').forEach(b => b.addEventListener('click', () => mostrarAbaDoc(b.dataset.aba)));
+function fecharMenuPop(pop, animar){
+  if (!pop.open) return;
+  if (!animar || reduzMov()){ pop.classList.remove('saindo'); pop.close(); return; }
+  if (pop.classList.contains('saindo')) return;
+  pop.classList.add('saindo');
+  const fim = () => { if (pop.classList.contains('saindo')){ pop.classList.remove('saindo'); pop.close(); } };
+  pop.addEventListener('animationend', fim, { once: true });
+  setTimeout(fim, 200);
+}
+function abrirMenu(menu){
+  $$('.menu').forEach(m => { if (m !== menu) m.classList.remove('aberto'); });
+  const pop = menu.querySelector('.menu-pop');
+  menu.classList.add('aberto');
+  pop.classList.remove('saindo');
+  if (pop.id === 'popDoc' || menu.id === 'menuMais') mostrarAbaDoc(abaDoc);
+  if (!pop.open) pop.showModal();
+  /* O foco cai no item marcado (ou no primeiro), para as setas andarem a
+     partir dele; mas ele só ACENDE com o teclado (:focus-visible). Aberto
+     com o mouse, nada fica aceso até o ponteiro passar por cima. */
+  const itens = itensDoMenu(pop).filter(b => !b.closest('.mp-abas'));
+  const alvo = itens.find(b => b.getAttribute('aria-checked') === 'true') || itens[0];
+  if (alvo) alvo.focus({ preventScroll: true });
+  pop.scrollTop = 0;
+  if (typeof medirPilulas === 'function') medirPilulas(true);
+}
 $$('.menu').forEach((menu) => {
+  const pop = menu.querySelector('.menu-pop');
   menu.querySelector('.menu-btn').onclick = (e) => {
     e.stopPropagation();
-    const jaAberto = menu.classList.contains('aberto');
-    $$('.menu').forEach(m => m.classList.remove('aberto'));
-    menu.classList.toggle('aberto', !jaAberto);
+    if (menu.classList.contains('aberto')) menu.classList.remove('aberto');
+    else abrirMenu(menu);
   };
-  // um menu só se fecha quando a escolha é única
-  menu.querySelector('.menu-pop').onclick = (e) => {
-    if (e.target.closest('[data-alterna]') || e.target.closest('.linha-corpo')) e.stopPropagation();
-  };
+  new MutationObserver(() => {
+    if (!menu.classList.contains('aberto')) fecharMenuPop(pop, true);
+  }).observe(menu, { attributes: true, attributeFilter: ['class'] });
+  pop.addEventListener('close', () => {
+    menu.classList.remove('aberto');
+    // fechou sem escolher nada (Esc, clique fora): o cursor volta ao texto
+    const a = document.activeElement;
+    if (!prefs.visualizando && (!a || a === document.body || a.closest('.menu'))) editor.focus({ preventScroll: true });
+  });
+  pop.addEventListener('cancel', (e) => { e.preventDefault(); menu.classList.remove('aberto'); });
+  // um clique no fundo escuro (o próprio <dialog>) fecha
+  pop.addEventListener('mousedown', (e) => { pop._fora = e.target === pop; });
+  pop.addEventListener('click', (e) => {
+    if (e.target === pop){ e.stopPropagation(); if (pop._fora) menu.classList.remove('aberto'); return; }
+    const b = e.target.closest('button');
+    // ligar e desligar deixa o menu aberto; escolher fecha
+    if (!b || b.closest('[data-alterna], [data-fica], .linha-corpo')){ e.stopPropagation(); return; }
+  });
+  /* Escolher fecha o diálogo ANTES da ação: com ele aberto o resto da
+     página está inerte, e a ação (focar a busca, abrir o sumário, o
+     seletor de arquivo) não alcançaria nada. */
+  pop.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || b.closest('[data-alterna], [data-fica], .linha-corpo')) return;
+    menu.classList.remove('aberto');
+    pop.classList.remove('saindo');
+    if (pop.open) pop.close();
+  }, true);
+  pop.addEventListener('keydown', (e) => {
+    const itens = itensDoMenu(pop);
+    if (e.key === 'Home' || e.key === 'End'){
+      e.preventDefault();
+      itens[e.key === 'Home' ? 0 : itens.length - 1]?.focus();
+      return;
+    }
+    if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key)){
+      e.preventDefault();
+      const atual = itens.includes(document.activeElement) ? document.activeElement : null;
+      if (!atual){ itens[0]?.focus(); return; }
+      // nas abas do Documento, esquerda e direita trocam de aba
+      if (atual.closest('.mp-abas') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
+        const abas = [...pop.querySelectorAll('.mp-abas [data-aba]')];
+        const n = (abas.indexOf(atual) + (e.key === 'ArrowRight' ? 1 : -1) + abas.length) % abas.length;
+        abas[n].focus(); abas[n].click();
+        return;
+      }
+      vizinhoNaDirecao(itens, atual, e.key)?.focus();
+      return;
+    }
+    if (e.key === 'Escape') return;           // o próprio <dialog> cuida
+    if (e.ctrlKey || e.metaKey){ menu.classList.remove('aberto'); fecharMenuPop(pop, false); return; }
+    e.stopPropagation();                      // as outras teclas ficam no menu
+  });
 });
 document.addEventListener('click', () => $$('.menu').forEach(m => m.classList.remove('aberto')));
 
@@ -1573,11 +2001,11 @@ $$('[data-escopo]').forEach(b => b.onclick = () => {
   prefs.escopo = b.dataset.escopo;
   aplicarPrefs(); desenhar(); editor.focus();
 });
-$$('[data-tema]').forEach(b => b.onclick = () => {
+$$('button[data-tema]').forEach(b => b.onclick = () => {
   prefs.tema = b.dataset.tema; aplicarPrefs();
   if (!prefs.visualizando) editor.focus();
 });
-$$('[data-fonte]').forEach(b => b.onclick = () => {
+$$('button[data-fonte]').forEach(b => b.onclick = () => {
   prefs.fonte = b.dataset.fonte; aplicarPrefs();
   if (prefs.poeta) desenhar();
   if (prefs.maquina) centralizarCursor();
@@ -1600,17 +2028,33 @@ function trocarTexto(novo, aviso){
   if (aviso) avisar(aviso);
 }
 
-$('#btnNovo').onclick = () => {
-  if (editor.value.trim() && !confirm('Começar um documento novo? O texto atual será descartado.')) return;
+$('#btnNovo').onclick = async () => {
+  if (editor.value.trim() && !(await perguntar({
+    titulo: 'Começar um documento novo?',
+    texto: 'O texto que está na tela será descartado, e isso não pode ser desfeito. Se quiser guardá-lo, exporte ou salve na pasta antes.',
+    acao: 'Descartar e começar'
+  }))) return;
   trocarTexto('');
 };
 
-$('#btnGuia').onclick = () => {
+$('#btnGuia').onclick = async () => {
   const atual = editor.value.trim();
   if (atual === GUIA.trim()){ scroller.scrollTop = 0; return avisar('O guia já está aberto'); }
-  if (atual && !confirm('Abrir o guia do Escritor? O texto atual será descartado.')) return;
+  if (atual && !(await perguntar({
+    titulo: 'Abrir o guia do Escritor?',
+    texto: 'O guia ocupa a tela toda, e o texto que está aqui será descartado. Se quiser guardá-lo, exporte ou salve na pasta antes.',
+    acao: 'Abrir o guia'
+  }))) return;
   trocarTexto(GUIA, 'Guia do Escritor');
 };
+
+/* O Sobre sai de dentro do menu da engrenagem, então o menu fecha antes:
+   dois pop-ups abertos ao mesmo tempo é um a mais. */
+$('#btnSobre').onclick = () => {
+  $$('.menu').forEach(m => m.classList.remove('aberto'));
+  abrirSobre();
+};
+$$('[data-versao]').forEach((n) => { n.textContent = 'v' + VERSAO; });
 
 $('#btnAbrir').onclick = () => $('#fileInput').click();
 $('#fileInput').onchange = (e) => {
@@ -1655,9 +2099,31 @@ function envolver(abre, fecha = abre){
 document.addEventListener('keydown', (e) => {
   const cmd = e.metaKey || e.ctrlKey;
 
+  /* Com a folha aberta ela é a única coisa que ouve o teclado: sem isto um
+     Ctrl+E trocaria a visualização por baixo do pop-up, e o Tab sairia do
+     painel para os botões da barra. */
+  if (folha && !folha.hidden){
+    if (e.key === 'Escape'){ e.preventDefault(); fecharFolha(null); return; }
+    if (e.key === 'Tab'){
+      const alvos = focaveisDaFolha();
+      if (!alvos.length) return;
+      const i = alvos.indexOf(document.activeElement);
+      const proximo = e.shiftKey
+        ? (i <= 0 ? alvos.length - 1 : i - 1)
+        : (i === alvos.length - 1 ? 0 : i + 1);
+      e.preventDefault();
+      alvos[proximo].focus();
+      return;
+    }
+    if (cmd) e.preventDefault();
+    return;
+  }
+
+  if (cmd && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f'){ e.preventDefault(); alternarTela(); return; }
+  if (e.key === 'Escape' && corpo.dataset.imersivo === '1' && !$$('.menu.aberto').length){ definirImersivo(false); return; }
   if (e.key === 'Escape'){
     if ($$('.menu.aberto').length){ $$('.menu').forEach(m => m.classList.remove('aberto')); return; }
-    if (!$('#revisao').hidden){ fecharRevisao(); renderRevisao(); return; }
+    if ($('#revisao').open){ fecharRevisao(); renderRevisao(); return; }
     if (prefs.visualizando) definirVisualizacao(false);
     return;
   }
@@ -1675,8 +2141,16 @@ document.addEventListener('keydown', (e) => {
     editor.setSelectionRange(a + sel.length + 3, a + sel.length + 6);
     return aoDigitar();
   }
-  if (k === 's'){ e.preventDefault(); return exportar('md'); }
-  if (k === 'o' && !e.shiftKey){ e.preventDefault(); return $('#fileInput').click(); }
+  /* Com uma pasta do Obsidian ligada, Ctrl+S salva NELA: e o que o gesto
+     quer dizer quando existe um lugar para salvar. Sem pasta, continua
+     baixando o .md como sempre. */
+  if (k === 's'){
+    e.preventDefault();
+    if (obsPasta) return void obsEscrever(true);
+    return exportar('md');
+  }
+  if (k === 'o' && !e.shiftKey){ e.preventDefault(); return PONTE ? PONTE.trocar() : (typeof abrirNotas === 'function' ? abrirNotas() : $('#fileInput').click()); }
+  if (k === 'h' && e.shiftKey){ e.preventDefault(); return envolver('=='); }
   if (k === 'e'){ e.preventDefault(); return definirVisualizacao(!prefs.visualizando); }
   if (k === 'd'){
     e.preventDefault();
@@ -1740,6 +2214,228 @@ editor.addEventListener('keydown', (e) => {
 });
 
 /* ═══════════════════════════════════════════════════════════
+   10b. Pasta no Obsidian
+   ─────────────────────────────────────────────────────────
+   O Escritor roda no navegador e não tem acesso a discos: não
+   dá para digitar um caminho como faz um aplicativo de mesa.
+   O que existe é a File System Access API, em que VOCÊ escolhe
+   a pasta uma vez, o navegador guarda a permissão e a partir
+   daí o Markdown é escrito direto lá dentro, sem plugin e sem
+   importar. Um vault do Obsidian é uma pasta comum, então
+   apontar para dentro dele basta.
+
+   A escolha (o handle) fica no IndexedDB, e não no
+   localStorage: um handle é um objeto vivo do navegador e não
+   sobrevive a virar texto. A permissão pode voltar como
+   "prompt" depois de fechar o navegador; nesse caso só um
+   clique pode reconfirmá-la, então a barra pede em vez de
+   tentar sozinha.
+   ═══════════════════════════════════════════════════════════ */
+
+const OBS_DB = 'escritor-obsidian';
+const OBS_STORE = 'handles';
+const OBS_CHAVE = 'pasta';
+/* Nome do arquivo em uso neste documento. Fica só na sessão: no dia seguinte
+   quem manda é o título, e não um nome velho gravado. */
+let obsArquivo = '';
+let obsPasta = null;
+let obsRelogio;
+
+const obsSuportado = typeof window.showDirectoryPicker === 'function' && window.isSecureContext;
+
+function obsBanco(){
+  return new Promise((ok, erro) => {
+    const req = indexedDB.open(OBS_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(OBS_STORE);
+    req.onsuccess = () => ok(req.result);
+    req.onerror = () => erro(req.error);
+  });
+}
+
+function obsGuardar(handle){
+  return obsBanco().then(db => new Promise((ok, erro) => {
+    const t = db.transaction(OBS_STORE, 'readwrite');
+    t.objectStore(OBS_STORE).put(handle, OBS_CHAVE);
+    t.oncomplete = () => ok();
+    t.onerror = () => erro(t.error);
+  })).catch(() => {});
+}
+
+function obsLer(){
+  return obsBanco().then(db => new Promise((ok) => {
+    const t = db.transaction(OBS_STORE, 'readonly');
+    const req = t.objectStore(OBS_STORE).get(OBS_CHAVE);
+    req.onsuccess = () => ok(req.result || null);
+    req.onerror = () => ok(null);
+  })).catch(() => null);
+}
+
+function obsApagar(){
+  return obsBanco().then(db => new Promise((ok) => {
+    const t = db.transaction(OBS_STORE, 'readwrite');
+    t.objectStore(OBS_STORE).delete(OBS_CHAVE);
+    t.oncomplete = () => ok();
+    t.onerror = () => ok();
+  })).catch(() => {});
+}
+
+/* pedir:false apenas CONSULTA. O navegador só aceita requestPermission dentro
+   de um gesto do usuário, então a consulta serve para desenhar o painel e o
+   pedido de verdade sai do clique. */
+async function obsPermissao(handle, pedir){
+  if (!handle || !handle.queryPermission) return 'granted';
+  const opcoes = { mode: 'readwrite' };
+  let estado = await handle.queryPermission(opcoes);
+  if (estado === 'granted') return estado;
+  if (!pedir) return estado;
+  try { estado = await handle.requestPermission(opcoes); } catch { return 'denied'; }
+  return estado;
+}
+
+function obsPintar(estado, texto){
+  const linha = $('#obsEstado');
+  if (!linha) return;
+  linha.dataset.estado = estado;
+  linha.textContent = texto;
+
+  const ligada = estado === 'ligada';
+  const temPasta = ligada || estado === 'espera';
+  $('#obsEscolher').textContent = temPasta ? 'Trocar de pasta' : 'Escolher pasta';
+  $('#obsEscolher').hidden = estado === 'sem-suporte';
+  $('#obsSalvar').hidden = !ligada;
+  $('#obsAuto').hidden = !ligada;
+  $('#obsEsquecer').hidden = !temPasta;
+  $('#obsDica').hidden = !ligada;
+  $('#obsAuto').setAttribute('aria-checked', String(!!prefs.obsidianAuto));
+  // (a engrenagem virou o painel Personalizar)
+}
+
+function obsDescrever(){
+  if (!obsPasta) return obsPintar('vazio', 'Nenhuma pasta escolhida.');
+  const alvo = obsArquivo || `${tituloDoTexto()}.md`;
+  obsPintar('ligada', `${obsPasta.name} · ${alvo}`);
+}
+
+async function obsEscolherPasta(){
+  if (!obsSuportado){
+    avisar('este navegador não deixa o site escrever em pastas');
+    return;
+  }
+  let handle;
+  try {
+    handle = await window.showDirectoryPicker({ id: 'escritor-obsidian', mode: 'readwrite' });
+  } catch { return; }                       // o usuário desistiu do seletor
+  if (await obsPermissao(handle, true) !== 'granted'){
+    avisar('sem permissão para escrever nessa pasta');
+    return;
+  }
+  obsPasta = handle;
+  obsArquivo = '';
+  await obsGuardar(handle);
+  obsDescrever();
+  avisar(`Obsidian: ${handle.name}`);
+  /* Escolher a pasta já grava o documento, menos o guia de abertura: ligar a
+     pasta pela primeira vez não pode despejar o manual do Escritor dentro do
+     vault de alguém. */
+  if (documentoSeu()) obsEscrever(true);
+}
+
+/* O texto é do usuário quando não está vazio e não é o guia de abertura.
+   A mesma pergunta que guardarTexto() faz para marcar CHAVE_SEU. */
+function documentoSeu(){
+  const t = editor.value.trim();
+  return !!t && t !== GUIA.trim();
+}
+
+/* Escreve o documento inteiro. `avisando` separa o salvamento que o usuário
+   pediu (com recado na tela) do automático, que tem de ser silencioso. */
+async function obsEscrever(avisando){
+  if (!obsPasta) return false;
+  if (await obsPermissao(obsPasta, false) !== 'granted'){
+    obsPintar('espera', `${obsPasta.name} · toque em “Escolher pasta” para reautorizar`);
+    if (avisando) avisar('o navegador precisa da pasta de novo');
+    return false;
+  }
+  const nome = `${tituloDoTexto()}.md`;
+  try {
+    const arquivo = await obsPasta.getFileHandle(nome, { create: true });
+    const fluxo = await arquivo.createWritable();
+    await fluxo.write(semTituloRepetido(editor.value));
+    await fluxo.close();
+    if (typeof obsAnexos === 'function') await obsAnexos(obsPasta, editor.value);
+  } catch {
+    if (avisando) avisar('não deu para escrever na pasta');
+    return false;
+  }
+  /* O arquivo segue o título. Trocando o título, o próximo salvamento cria
+     outro arquivo e o anterior FICA onde está: apagar o trabalho de alguém
+     por causa de uma linha editada não é decisão do editor. */
+  const trocou = obsArquivo && obsArquivo !== nome;
+  obsArquivo = nome;
+  obsDescrever();
+  if (avisando) avisar(trocou ? `agora em ${nome}` : `${nome} no Obsidian`);
+  return true;
+}
+
+/* No Obsidian o TÍTULO da nota é o nome do arquivo. Como o nome do arquivo sai
+   da primeira linha do texto, um `# Título` no corpo apareceria duas vezes na
+   leitura: uma como nota, outra como cabeçalho. Aqui o H1 de abertura sai do
+   que é gravado — e SÓ ele, e só quando é mesmo o título que virou nome do
+   arquivo. O documento no editor não é tocado. */
+function semTituloRepetido(texto){
+  const linhas = texto.split('\n');
+  let i = 0;
+  while (i < linhas.length && !linhas[i].trim()) i++;   // pula folgas do começo
+  const primeira = linhas[i];
+  if (primeira === undefined) return texto;
+
+  const h1 = primeira.match(/^#\s+(.*)$/);             // só H1, nunca ## ou ###
+  if (!h1) return texto;
+  if (h1[1].trim() !== tituloLegivel()) return texto;
+
+  linhas.splice(0, i + 1);
+  while (linhas.length && !linhas[0].trim()) linhas.shift();  // e a linha vazia que sobrava
+  return linhas.join('\n');
+}
+
+function obsAgendar(){
+  if (!prefs.obsidianAuto || !obsPasta || !documentoSeu()) return;
+  clearTimeout(obsRelogio);
+  obsRelogio = setTimeout(() => obsEscrever(false), 2500);
+}
+
+if (!obsSuportado){
+  obsPintar('sem-suporte', 'Este navegador não deixa um site gravar em pastas. Use o Chrome ou o Edge, ou continue exportando o .md.');
+  $('#obsTexto').textContent =
+    'A gravação direta na pasta depende de um recurso que só existe em alguns navegadores.';
+} else {
+  obsLer().then(async (handle) => {
+    if (!handle) return obsPintar('vazio', 'Nenhuma pasta escolhida.');
+    obsPasta = handle;
+    const estado = await obsPermissao(handle, false);
+    if (estado === 'granted') obsDescrever();
+    else obsPintar('espera', `${handle.name} · toque em “Escolher pasta” para reautorizar`);
+  });
+}
+
+$('#obsEscolher').onclick = obsEscolherPasta;
+$('#obsSalvar').onclick = () => obsEscrever(true);
+$('#obsEsquecer').onclick = async () => {
+  obsPasta = null; obsArquivo = '';
+  clearTimeout(obsRelogio);
+  await obsApagar();
+  obsPintar('vazio', 'Nenhuma pasta escolhida.');
+  avisar('pasta esquecida');
+};
+$('#obsAuto').onclick = (e) => {
+  e.stopPropagation();                      // marcar não fecha o menu
+  prefs.obsidianAuto = !prefs.obsidianAuto;
+  salvarPrefs();
+  $('#obsAuto').setAttribute('aria-checked', String(prefs.obsidianAuto));
+  if (prefs.obsidianAuto && documentoSeu()) obsEscrever(false);
+};
+
+/* ═══════════════════════════════════════════════════════════
    11. Ciclo de vida
    ═══════════════════════════════════════════════════════════ */
 
@@ -1749,11 +2445,13 @@ function guardarTexto(){
   clearTimeout(relogioSalvar);
   $('#stSalvo').textContent = 'salvando…';
   relogioSalvar = setTimeout(() => {
+    if (PONTE){ PONTE.salvar(editor.value); $('#stSalvo').textContent = 'salvo'; return; }
     try {
       localStorage.setItem(CHAVE_TEXTO, editor.value);
       // texto igual ao guia (ou em branco) não conta como documento seu
       const seu = editor.value.trim() && editor.value.trim() !== GUIA.trim();
       localStorage.setItem(CHAVE_SEU, seu ? '1' : '0');
+      if (typeof notaGuardar === 'function') notaGuardar(editor.value, !!seu);
       $('#stSalvo').textContent = 'salvo';
     } catch {
       $('#stSalvo').textContent = 'sem espaço para salvar';
@@ -1769,19 +2467,33 @@ function aoDigitar(){
   precisaCentrar = prefs.maquina;
   desenhar();
   guardarTexto();
+  obsAgendar();
   esconderChrome();
 }
 
 editor.addEventListener('input', aoDigitar);
 
 /* Mover o cursor com as setas ou com o mouse também recentraliza
-   no modo máquina de escrever, e sempre redesenha o foco. */
-['keyup','click','select','focus'].forEach(ev =>
-  editor.addEventListener(ev, () => {
+   no modo máquina de escrever, e sempre redesenha o foco.
+   Antes isso esperava a tecla SUBIR (keyup): entre apertar e soltar a
+   seta o cursor já estava na linha nova e o destaque ainda na velha, e
+   a linha de trás piscava. Agora quem avisa é o selectionchange, que
+   dispara no mesmo instante em que o cursor anda; o redesenho vai para
+   o próximo quadro e só acontece se o cursor de fato mudou de lugar. */
+let ultimoDesenho = '';
+let rafCursor = 0;
+function redesenharCursor(){
+  cancelAnimationFrame(rafCursor);
+  rafCursor = requestAnimationFrame(() => {
+    const chave = editor.selectionStart + ':' + editor.selectionEnd + ':' + editor.value.length;
+    if (chave === ultimoDesenho) return;
     precisaCentrar = prefs.maquina;
     desenhar();
     atualizarRegua();
-  }));
+  });
+}
+document.addEventListener('selectionchange', () => { if (document.activeElement === editor) redesenharCursor(); });
+['click', 'focus'].forEach(ev => editor.addEventListener(ev, redesenharCursor));
 
 /* Clicar na folha sempre devolve o cursor ao texto — inclusive nas
    margens laterais e no branco abaixo da última linha, que não fazem
@@ -1810,7 +2522,7 @@ scroller.addEventListener('pointerdown', (e) => {
 document.addEventListener('click', (e) => {
   if (prefs.visualizando) return;
   if (!e.target.closest('.bar, .stats, .revisao')) return;
-  if (e.target.closest('#btnAbrir, #fileInput, .menu-btn')) return;
+  if (e.target.closest('#btnAbrir, #fileInput, .menu-btn, .menu-pop')) return;
   editor.focus({ preventScroll:true });
 });
 
@@ -1850,6 +2562,7 @@ function manterCursorVisivel(){
   if (alvo > limite) scroller.scrollTop += alvo - limite;
 }
 window.addEventListener('beforeunload', () => {
+  if (PONTE){ clearTimeout(relogioSalvar); PONTE.salvar(editor.value); return; }
   try {
     localStorage.setItem(CHAVE_TEXTO, editor.value);
     const seu = editor.value.trim() && editor.value.trim() !== GUIA.trim();
@@ -1861,18 +2574,17 @@ window.addEventListener('beforeunload', () => {
    12. O guia — também é o documento da primeira abertura
    ═══════════════════════════════════════════════════════════ */
 
-const GUIA = `# Guia do Escritor
+const GUIA = paraSO(`# Guia do Escritor
 
 Este é um editor para escrever e revisar textos sem distrações. Você pode apagar todo este conteúdo e começar a escrever: o seu texto é salvo automaticamente neste navegador.
 
-## Documentos
+## Notas
 
-No canto superior esquerdo ficam dois comandos:
+O Escritor guarda várias notas. O botão **Notas**, no canto esquerdo da barra (ou \`Ctrl+O\`), abre todas elas em cartões no meio da tela: procure, abra com \`Enter\`, crie uma **Nova nota** (\`Ctrl+Alt+N\`) ou apague, com **Desfazer** por alguns segundos. Não há barra lateral: a folha fica inteira para escrever.
 
-- **Novo documento** — limpa a folha para começar outro texto. Se já houver conteúdo, o aplicativo pede confirmação antes de descartá-lo.
-- **Abrir** — abre um arquivo Markdown (\`.md\`) ou texto simples (\`.txt\`) que esteja no seu computador. Você também pode arrastar um desses arquivos para a folha.
+No menu **⋯ Documento**, a aba **Arquivo** também abre arquivos \`.md\` e \`.txt\` do computador, cada um como uma nota nova. Arrastar um desses arquivos para a folha faz o mesmo.
 
-O salvamento automático protege o rascunho ao fechar ou atualizar a página, mas fica somente neste navegador. Para guardar uma cópia permanente ou enviar o texto a alguém, use **Exportar**.
+As notas ficam neste navegador. Para guardar de verdade, ligue uma pasta do Obsidian (cada nota vira um arquivo) ou use **Exportar**.
 
 ## Escrever e formatar
 
@@ -1886,6 +2598,19 @@ Escreva normalmente na folha. Para formatar, use Markdown ou os atalhos:
 - \`[nome](https://endereco.com)\` cria um [link](https://exemplo.com).
 
 Os sinais ficam visíveis durante a edição para você continuar no controle do texto. Use **Visualizar** quando quiser ver o resultado limpo e formatado.
+
+## Botão direito: o caderno de estudos
+
+Clique com o botão direito no texto para formatar sem decorar atalhos. Além de recortar, copiar e colar, o menu tem:
+
+- **Grifar**: \`==texto==\` pinta o fundo de amarelo, como um marca-texto (\`Ctrl+Shift+H\`).
+- **Nota de rodapé**: a chamada \`[^1]\` fica onde está o cursor e o texto da nota vai para o fim. No **Visualizar**, as notas aparecem numeradas embaixo.
+- **Comentário oculto**: \`%%assim%%\` fica no arquivo, mas some na leitura e na exportação.
+- **Tarefa**, **título**, **subtítulo**, **citação** e **listas**, em uma linha ou em várias de uma vez.
+
+## Imagens
+
+Cole uma imagem (\`Ctrl+V\`) ou arraste um arquivo de imagem para a folha. Ela fica guardada no navegador e o texto recebe \`![](anexos/imagem….png)\`. A imagem aparece no **Visualizar**, vai dentro dos arquivos exportados e, com uma pasta do Obsidian ligada, é gravada em \`anexos\`, ao lado das notas.
 
 ## Foco
 
@@ -1916,13 +2641,20 @@ O menu **Realce** ajuda a encontrar problemas sem alterar o conteúdo automatica
 
 Escolha uma classe por vez para analisá-la ou selecione **Todas as classes** para comparar as cores. A análise é uma ajuda visual: palavras ambíguas podem depender do contexto e ficam sem realce quando não há segurança.
 
-## Aparência — Aa
+## A barra e os menus
 
-O menu **Aa** muda apenas a aparência, nunca o conteúdo:
+Em cima ficam **Notas**, **Foco** (o visor), **Realce** (o marca-texto), **Visualizar** (o olho, que vira caneta enquanto você lê), **Aa**, a tela cheia e o **⋯ Documento**. Os menus abrem no meio da tela, largos: as setas andam pelas opções em qualquer direção, \`Enter\` escolhe e \`Esc\` fecha. Nada acende sozinho, só o que está sob o ponteiro. Embaixo, o rodapé conta as palavras e o tempo de leitura, avisa os pontos de atenção e mostra se o texto está salvo.
 
-- **Fonte** escolhe entre Duo, Mono e Quattro.
-- **Corpo** aumenta ou diminui o tamanho das letras.
-- **Papel** troca entre os temas Claro, Sépia e Escuro.
+## Personalizar — Aa
+
+O botão **Aa** (ou \`Ctrl+,\`) abre o painel Personalizar no meio da tela. No alto, uma fileira de ícones leva a cada seção. Ele muda a aparência e o jeito de escrever, nunca o conteúdo, e a amostra ao lado mostra cada mudança na hora:
+
+- **Estilos prontos** trocam tudo de uma vez: Livro, Noturno, Concentração, Revisão e outros. Você também pode salvar a sua combinação com um nome.
+- **Aparência**: oito papéis e o Automático, que segue o claro ou escuro do sistema; a cor de destaque, inclusive uma escolhida por você; a cor dos títulos e os sinais do Markdown.
+- **Texto**: fonte, corpo, entrelinha, espaço entre letras e largura da coluna.
+- **Escrita**, **Revisão** e **Tela e meta** reúnem o Foco, a máquina de escrever, a tipografia inteligente, a ortografia, as classes gramaticais, o rodapé e a meta de palavras.
+
+A busca no alto do painel (\`Ctrl+F\` com ele aberto) acha qualquer ajuste pelo nome. **Exportar ajustes** guarda tudo num arquivo .json, que **Importar** traz de volta em outro navegador.
 
 ## Visualizar
 
@@ -1939,6 +2671,21 @@ O menu **Exportar** cria uma cópia do documento no formato escolhido:
 - **PDF** abre a impressão do navegador para salvar ou imprimir.
 
 Também é possível copiar Markdown ou HTML para a área de transferência. O primeiro título do documento é usado como nome do arquivo.
+
+## Pasta no Obsidian
+
+A engrenagem guarda um ajuste só, e ele fica gravado nesta máquina: uma pasta de destino. Escolha qualquer pasta de dentro do seu vault e o Escritor passa a gravar o Markdown direto nela, sem plugin e sem importar nada. O Obsidian vê o arquivo aparecer.
+
+- **Escolher pasta** abre o seletor do sistema. A permissão é pedida uma vez.
+- **Salvar no Obsidian** grava o documento agora. Com uma pasta ligada, \`Ctrl+S\` faz o mesmo (sem pasta, ele continua baixando o \`.md\`).
+- **Salvar sozinho enquanto escrevo** grava alguns segundos depois de você parar de digitar.
+- **Esquecer a pasta** desfaz a ligação. Nada é apagado do disco.
+
+O arquivo recebe o nome da primeira linha do texto, e no Obsidian o nome do arquivo JÁ É o título da nota. Por isso o \`# Título\` de abertura não é gravado dentro do arquivo: sem essa poda ele apareceria duas vezes na leitura, uma como nota e outra como cabeçalho. Sai só o primeiro, e só quando ele é mesmo o título; o documento aqui no editor continua inteiro.
+
+Se você trocar o título, o próximo salvamento cria um arquivo novo e o anterior fica onde está.
+
+A gravação direta em pastas depende de um recurso que hoje existe no Chrome e no Edge. Nos outros navegadores a engrenagem avisa, e a exportação em \`.md\` continua servindo.
 
 ## Rodapé
 
@@ -1988,10 +2735,10 @@ O **Corpo**, no menu **Aa**, aumenta as letras do seu texto — e só elas. Para
 
 Também funciona segurar \`Ctrl\` e girar a roda do mouse. No Mac, troque \`Ctrl\` por \`⌘\`.
 
-Ao lado de **Modo Poeta** há ainda o botão de **tela cheia**, com os quatro cantos: ele esconde as abas e a barra de endereço do navegador e deixa só a folha. Clique de novo — ou pressione \`Esc\` — para voltar.
+Na barra, ao lado do **⋯**, fica o botão de **tela cheia**, com os quatro cantos (ou \`Ctrl+Shift+F\`): ele esconde as abas e a barra de endereço do navegador e deixa só a folha. Clique de novo ou pressione \`Esc\` para voltar. No iPhone, onde o navegador não tem tela cheia, a barra e o rodapé saem e fica um botão discreto no canto para voltar.
 
 O navegador guarda o zoom escolhido e o aplica sempre que você voltar ao Escritor, mesmo depois de fechar. Nada disso altera o documento: o arquivo salvo ou exportado sai igual, qualquer que seja o zoom da tela.
-`;
+`);
 
 /* ═══════════════════════════════════════════════════════════
    13. Primeira abertura
@@ -2009,7 +2756,7 @@ const seuTexto = localStorage.getItem(CHAVE_SEU) === '1';
    toda abertura — e não apenas da primeira. Assim ele não se perde
    por causa de um rascunho vazio deixado na sessão anterior, nem
    fica preso a uma versão antiga guardada no navegador. */
-editor.value = (seuTexto && guardado && guardado.trim()) ? guardado : GUIA;
+editor.value = PONTE ? PONTE.texto() : (seuTexto && guardado && guardado.trim()) ? guardado : GUIA;
 
 aplicarPrefs();
 if (prefs.visualizando) definirVisualizacao(true);
