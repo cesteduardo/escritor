@@ -1,42 +1,63 @@
-# Gera os instaladores do Escritor para Linux e Windows a cada etiqueta
-# de versão (v2.8.0, v2.8.1…) e os anexa à página de lançamentos.
+# Gera o Escritor para Linux e Windows e publica na página de lançamentos,
+# com a etiqueta da versão de desktop/package.json (v2.8.0, v2.8.1…).
+# Roda sozinho quando algo em desktop/ muda na main, ou pelo botão
+# "Run workflow" na aba Actions.
 name: Instaladores
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: instaladores
+  cancel-in-progress: false
+
 jobs:
   linux:
     runs-on: ubuntu-latest
+    outputs:
+      versao: ${{ steps.v.outputs.versao }}
     defaults: { run: { working-directory: desktop } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npm ci || npm install
+      - id: v
+        run: echo "versao=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - run: npm ci
       - run: npm run linux
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
+          tag_name: v${{ steps.v.outputs.versao }}
+          target_commitish: ${{ github.sha }}
+          name: Escritor ${{ steps.v.outputs.versao }}
+          body: |
+            **Linux:** o `.AppImage` roda em qualquer distribuição (`chmod +x` e dois cliques); o `.deb` instala no Debian, Ubuntu e Mint.
+            **Windows 10 e 11:** o `instalador.exe` cria o atalho no menu Iniciar; o `.zip` roda sem instalar (extraia e abra o `Escritor.exe`).
+            Pelo navegador, sem baixar nada: https://cesteduardo.github.io/escritor/ (Chrome ou Edge → Instalar).
           files: |
             desktop/dist/*.AppImage
             desktop/dist/*.deb
 
   windows:
+    needs: linux
     runs-on: windows-latest
     defaults: { run: { working-directory: desktop } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npm ci; if ($LASTEXITCODE) { npm install }
-      - run: npm run windows-instalador
+      - run: npm ci
+      - run: npm run copiar
+      - run: npx electron-builder --win nsis zip --x64 --publish never
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: desktop/dist/*-windows-instalador.exe
+          tag_name: v${{ needs.linux.outputs.versao }}
+          files: |
+            desktop/dist/*-windows-instalador.exe
+            desktop/dist/*-windows-x64.zip

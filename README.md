@@ -26,11 +26,11 @@ O Escritor pode virar um aplicativo, com ícone próprio, janela própria e sem 
 | Linux (qualquer distribuição) | `Escritor-2.8.0-linux-x86_64.AppImage` | `chmod +x` no arquivo e dois cliques |
 | Linux (Debian, Ubuntu, Mint) | `Escritor-2.8.0-linux-amd64.deb` | `sudo apt install ./Escritor-2.8.0-linux-amd64.deb` |
 | Windows 10 e 11 | `Escritor-2.8.0-windows-x64.zip` | extraia a pasta e abra o `Escritor.exe` |
-| Windows 10 e 11 | `Escritor-2.8.0-windows-instalador.exe` | instalador com atalho no menu Iniciar (gerado pelo GitHub Actions a cada versão) |
+| Windows 10 e 11 | `Escritor-2.8.0-windows-instalador.exe` | instalador com atalho no menu Iniciar |
 
 O programa de computador guarda as notas dentro dele, separadas das do navegador: para levar notas de um para o outro, exporte e abra, ou ligue os dois à mesma pasta do Obsidian. Arquivos `.md` e `.txt` abertos pelo sistema (**Abrir com → Escritor**) entram como nota nova.
 
-Para gerar os pacotes você mesmo, dentro de `desktop/`: `npm install`, depois `npm run linux` ou `npm run windows`. O instalador `.exe` do Windows só se gera no próprio Windows (`npm run windows-instalador`); no Linux sai o `.zip`.
+Os pacotes são gerados pelo GitHub Actions sempre que algo muda em `desktop/` (para uma versão nova, suba o número em `desktop/package.json`). Para gerá-los você mesmo, dentro de `desktop/`: `npm install`, depois `npm run linux` ou `npm run windows`. O instalador `.exe` do Windows só se gera no próprio Windows (`npm run windows-instalador`); no Linux sai o `.zip`.
 
 ---
 
