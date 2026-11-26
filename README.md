@@ -266,4 +266,8 @@ A interface usa a **Inter** (SIL Open Font License 1.1), também em `fontes/`. O
 
 As notas, o texto aberto e as preferências ficam no `localStorage` do navegador (`escritor:notas`, `escritor:texto`, `escritor:prefs`, e as palavras que você ensinou ao corretor em `escritor:dicionario`); as imagens ficam no IndexedDB (`escritor-anexos`). Trocar de navegador ou limpar os dados do site apaga tudo: para guardar de verdade, ligue uma pasta do Obsidian ou exporte.
 
+## Licença
+
+O Escritor é software livre, sob a **licença MIT** (arquivo `LICENSE`): qualquer pessoa pode usar, estudar, copiar, modificar e redistribuir o código, inclusive em outros projetos, desde que mantenha o aviso de copyright. As peças de terceiros (fontes, ícones Lucide, corretor, dicionário e sons) seguem com as licenças delas, todas abertas, listadas no fim do `LICENSE` e na seção sobre as fontes e os ícones.
+
 Projeto de código aberto e sem fins lucrativos, feito por GR Brands.

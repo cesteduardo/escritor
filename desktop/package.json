@@ -5,7 +5,7 @@
   "description": "Caderno de escrita e estudo em Markdown",
   "author": "GR Brands <contato@grbrands.com.br>",
   "homepage": "https://cesteduardo.github.io/escritor/",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "main": "main.js",
   "scripts": {
     "copiar": "node copiar.js",
