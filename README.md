@@ -1,4 +1,4 @@
-# Escritor 2.8.0
+# Escritor 2.8.1
 
 Um caderno de escrita e estudo em Markdown, no espírito do [iA Writer](https://ia.net/writer): folha limpa, barra que some enquanto você escreve, Markdown realçado sem transformar o texto. A versão 2.0 transforma a folha única num caderno: várias notas, grifo e notas de rodapé no botão direito, imagens coladas, pasta do Obsidian e uma interface inteira redesenhada no estilo do macOS e do GNOME.
 
@@ -23,10 +23,10 @@ O Escritor pode virar um aplicativo, com ícone próprio, janela própria e sem 
 
 | Sistema | Arquivo | Como usar |
 | --- | --- | --- |
-| Linux (qualquer distribuição) | `Escritor-2.8.0-linux-x86_64.AppImage` | `chmod +x` no arquivo e dois cliques |
-| Linux (Debian, Ubuntu, Mint) | `Escritor-2.8.0-linux-amd64.deb` | `sudo apt install ./Escritor-2.8.0-linux-amd64.deb` |
-| Windows 10 e 11 | `Escritor-2.8.0-windows-x64.zip` | extraia a pasta e abra o `Escritor.exe` |
-| Windows 10 e 11 | `Escritor-2.8.0-windows-instalador.exe` | instalador com atalho no menu Iniciar |
+| Linux (qualquer distribuição) | `Escritor-2.8.1-linux-x86_64.AppImage` | `chmod +x` no arquivo e dois cliques |
+| Linux (Debian, Ubuntu, Mint) | `Escritor-2.8.1-linux-amd64.deb` | `sudo apt install ./Escritor-2.8.1-linux-amd64.deb` |
+| Windows 10 e 11 | `Escritor-2.8.1-windows-x64.zip` | extraia a pasta e abra o `Escritor.exe` |
+| Windows 10 e 11 | `Escritor-2.8.1-windows-instalador.exe` | instalador com atalho no menu Iniciar |
 
 O programa de computador guarda as notas dentro dele, separadas das do navegador: para levar notas de um para o outro, exporte e abra, ou ligue os dois à mesma pasta do Obsidian. Arquivos `.md` e `.txt` abertos pelo sistema (**Abrir com → Escritor**) entram como nota nova.
 
@@ -35,6 +35,8 @@ Os pacotes são gerados pelo GitHub Actions sempre que algo muda em `desktop/` (
 ---
 
 ## Na 2.8
+
+- **Ícone novo (2.8.1):** um caderno de espiral azul com a caneta laranja escrevendo no fim da última linha, desenhado no estilo dos ícones do GNOME (frontal, com a espessura da capa embaixo e a paleta do Adwaita). Está em `icons/escritor.svg`, de onde saem os PNG, o `.ico` e o ícone *maskable* do Android. O favicon da aba continua o traço escuro de sempre, que lê melhor em 16 px.
 
 - **Celular revisto por inteiro:** em telas de 360 px a barra passava da borda e o **⋯** ficava cortado; agora a tela cheia sai da barra (continua em **Ferramentas**) e tudo cabe até em 320 px. Com o celular deitado, o **Personalizar** vira folha inteira, com as seções numa fila de pílulas, em vez de sobrar uma fresta para o conteúdo; os pop-ups usam quase toda a altura e rolam por dentro. Os atalhos de teclado (`Ctrl+F`, `Esc fechar`…) somem em qualquer tela de toque, também deitada e no tablet, onde antes continuavam à mostra.
 - **Aplicativo instalável:** manifesto, ícones e um *service worker* que guarda o Escritor inteiro no aparelho na primeira visita. Ele abre sem internet, instala pelo Chrome e pelo Edge e aceita `.md` e `.txt` abertos pelo sistema. Uma versão nova vale a partir da abertura seguinte.
@@ -259,7 +261,7 @@ A interface usa a **Inter** (SIL Open Font License 1.1), também em `fontes/`. O
 | `orto/` | o corretor: Hunspell em WebAssembly, o worker e o dicionário VERO |
 | `fontes/` | iA Writer (estáticas e variáveis), Inter e Atkinson em `woff2`, com as licenças |
 | `manifest.webmanifest`, `sw.js` | o aplicativo instalável: nome, ícones e o cache para funcionar offline |
-| `icons/` | o favicon e os ícones do aplicativo (PNG, maskable e `.ico`) |
+| `icons/` | o ícone do aplicativo (`escritor.svg`, desenho próprio) com os PNG, o maskable e o `.ico`, e o favicon |
 | `desktop/` | o programa para Linux e Windows (Electron e electron-builder) |
 
 As notas, o texto aberto e as preferências ficam no `localStorage` do navegador (`escritor:notas`, `escritor:texto`, `escritor:prefs`, e as palavras que você ensinou ao corretor em `escritor:dicionario`); as imagens ficam no IndexedDB (`escritor-anexos`). Trocar de navegador ou limpar os dados do site apaga tudo: para guardar de verdade, ligue uma pasta do Obsidian ou exporte.
