@@ -19,7 +19,7 @@ O Escritor pode virar um aplicativo, com ícone próprio, janela própria e sem 
 
 **Pelo navegador (Linux, Windows, macOS, Android):** abra [cesteduardo.github.io/escritor](https://cesteduardo.github.io/escritor/) no Chrome ou no Edge e clique em **Instalar** na barra de endereço, ou em **Documento → Ajuda → Instalar o Escritor**. No iPhone e no iPad, use **Compartilhar → Adicionar à Tela de Início** no Safari. É o mesmo Escritor do site, com as mesmas notas.
 
-**Como programa de computador:** a [página de lançamentos](https://github.com/cesteduardo/escritor/releases) traz os pacotes.
+**Como programa de computador:** os pacotes abaixo saem da pasta `desktop/` e, com o GitHub Actions ativo na conta, são publicados sozinhos na [página de lançamentos](https://github.com/cesteduardo/escritor/releases).
 
 | Sistema | Arquivo | Como usar |
 | --- | --- | --- |
