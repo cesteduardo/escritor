@@ -1,4 +1,4 @@
-# Escritor 2.7.6
+# Escritor 2.8.0
 
 Um caderno de escrita e estudo em Markdown, no espírito do [iA Writer](https://ia.net/writer): folha limpa, barra que some enquanto você escreve, Markdown realçado sem transformar o texto. A versão 2.0 transforma a folha única num caderno: várias notas, grifo e notas de rodapé no botão direito, imagens coladas, pasta do Obsidian e uma interface inteira redesenhada no estilo do macOS e do GNOME.
 
@@ -12,6 +12,33 @@ python3 -m http.server 8000
 Na primeira abertura aparece o **Guia do Escritor**, um texto que explica o aplicativo escrito nele mesmo. A primeira coisa que você escrever vira uma nota sua.
 
 ---
+
+## Instalar
+
+O Escritor pode virar um aplicativo, com ícone próprio, janela própria e sem precisar de internet depois da primeira abertura.
+
+**Pelo navegador (Linux, Windows, macOS, Android):** abra [cesteduardo.github.io/escritor](https://cesteduardo.github.io/escritor/) no Chrome ou no Edge e clique em **Instalar** na barra de endereço, ou em **Documento → Ajuda → Instalar o Escritor**. No iPhone e no iPad, use **Compartilhar → Adicionar à Tela de Início** no Safari. É o mesmo Escritor do site, com as mesmas notas.
+
+**Como programa de computador:** a [página de lançamentos](https://github.com/cesteduardo/escritor/releases) traz os pacotes.
+
+| Sistema | Arquivo | Como usar |
+| --- | --- | --- |
+| Linux (qualquer distribuição) | `Escritor-2.8.0-linux-x86_64.AppImage` | `chmod +x` no arquivo e dois cliques |
+| Linux (Debian, Ubuntu, Mint) | `Escritor-2.8.0-linux-amd64.deb` | `sudo apt install ./Escritor-2.8.0-linux-amd64.deb` |
+| Windows 10 e 11 | `Escritor-2.8.0-windows-x64.zip` | extraia a pasta e abra o `Escritor.exe` |
+| Windows 10 e 11 | `Escritor-2.8.0-windows-instalador.exe` | instalador com atalho no menu Iniciar (gerado pelo GitHub Actions a cada versão) |
+
+O programa de computador guarda as notas dentro dele, separadas das do navegador: para levar notas de um para o outro, exporte e abra, ou ligue os dois à mesma pasta do Obsidian. Arquivos `.md` e `.txt` abertos pelo sistema (**Abrir com → Escritor**) entram como nota nova.
+
+Para gerar os pacotes você mesmo, dentro de `desktop/`: `npm install`, depois `npm run linux` ou `npm run windows`. O instalador `.exe` do Windows só se gera no próprio Windows (`npm run windows-instalador`); no Linux sai o `.zip`.
+
+---
+
+## Na 2.8
+
+- **Celular revisto por inteiro:** em telas de 360 px a barra passava da borda e o **⋯** ficava cortado; agora a tela cheia sai da barra (continua em **Ferramentas**) e tudo cabe até em 320 px. Com o celular deitado, o **Personalizar** vira folha inteira, com as seções numa fila de pílulas, em vez de sobrar uma fresta para o conteúdo; os pop-ups usam quase toda a altura e rolam por dentro. Os atalhos de teclado (`Ctrl+F`, `Esc fechar`…) somem em qualquer tela de toque, também deitada e no tablet, onde antes continuavam à mostra.
+- **Aplicativo instalável:** manifesto, ícones e um *service worker* que guarda o Escritor inteiro no aparelho na primeira visita. Ele abre sem internet, instala pelo Chrome e pelo Edge e aceita `.md` e `.txt` abertos pelo sistema. Uma versão nova vale a partir da abertura seguinte.
+- **Programa para Linux e Windows:** a pasta `desktop/` empacota o Escritor com o Electron em AppImage, `.deb`, `.zip` e instalador do Windows.
 
 ## Na 2.7
 
@@ -231,6 +258,9 @@ A interface usa a **Inter** (SIL Open Font License 1.1), também em `fontes/`. O
 | `ponte.js` | a ligação com o [Caderno](https://cesteduardo.github.io/caderno/) (só age lá dentro) |
 | `orto/` | o corretor: Hunspell em WebAssembly, o worker e o dicionário VERO |
 | `fontes/` | iA Writer (estáticas e variáveis), Inter e Atkinson em `woff2`, com as licenças |
+| `manifest.webmanifest`, `sw.js` | o aplicativo instalável: nome, ícones e o cache para funcionar offline |
+| `icons/` | o favicon e os ícones do aplicativo (PNG, maskable e `.ico`) |
+| `desktop/` | o programa para Linux e Windows (Electron e electron-builder) |
 
 As notas, o texto aberto e as preferências ficam no `localStorage` do navegador (`escritor:notas`, `escritor:texto`, `escritor:prefs`, e as palavras que você ensinou ao corretor em `escritor:dicionario`); as imagens ficam no IndexedDB (`escritor-anexos`). Trocar de navegador ou limpar os dados do site apaga tudo: para guardar de verdade, ligue uma pasta do Obsidian ou exporte.
 

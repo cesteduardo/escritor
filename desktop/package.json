@@ -1,0 +1,66 @@
+{
+  "name": "escritor",
+  "productName": "Escritor",
+  "version": "2.8.0",
+  "description": "Caderno de escrita e estudo em Markdown",
+  "author": "GR Brands <contato@grbrands.com.br>",
+  "homepage": "https://cesteduardo.github.io/escritor/",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "scripts": {
+    "copiar": "node copiar.js",
+    "start": "npm run copiar && electron .",
+    "linux": "npm run copiar && electron-builder --linux AppImage deb --x64 --publish never",
+    "windows": "npm run copiar && electron-builder --win dir --x64 --publish never -c.win.signAndEditExecutable=false && node icone-windows.js && electron-builder --win zip --x64 --publish never --prepackaged dist/win-unpacked -c.win.signAndEditExecutable=false",
+    "windows-instalador": "npm run copiar && electron-builder --win nsis --x64 --publish never"
+  },
+  "build": {
+    "appId": "br.com.grbrands.escritor",
+    "productName": "Escritor",
+    "artifactName": "Escritor-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "main.js",
+      "app/**/*"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Markdown",
+        "role": "Editor"
+      },
+      {
+        "ext": "txt",
+        "name": "Texto",
+        "role": "Editor"
+      }
+    ],
+    "linux": {
+      "icon": "app/icons/icon-512.png",
+      "category": "Office",
+      "maintainer": "GR Brands <contato@grbrands.com.br>",
+      "synopsis": "Caderno de escrita em Markdown",
+      "mimeTypes": [
+        "text/markdown",
+        "text/plain"
+      ]
+    },
+    "win": {
+      "icon": "app/icons/icon.ico",
+      "artifactName": "Escritor-${version}-windows-x64.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Escritor",
+      "language": "1046",
+      "artifactName": "Escritor-${version}-windows-instalador.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0",
+    "resedit": "^2.0.3"
+  }
+}
