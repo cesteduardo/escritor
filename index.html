@@ -582,7 +582,9 @@
 <script>
 /* Aplicativo instalável: o service worker guarda tudo para funcionar
    offline, e um .md aberto pelo sistema (botão direito → Abrir com) vira nota. */
-if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+/* Dentro do Caderno (num iframe) quem guarda tudo é o service worker do
+   próprio Caderno; o do Escritor só vale quando ele abre sozinho. */
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && window.top === window) {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 /* O navegador avisa quando o Escritor pode ser instalado; só então o

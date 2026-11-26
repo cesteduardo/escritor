@@ -1,4 +1,4 @@
-# Escritor 2.8.1
+# Escritor 2.8.2
 
 Um caderno de escrita e estudo em Markdown, no espírito do [iA Writer](https://ia.net/writer): folha limpa, barra que some enquanto você escreve, Markdown realçado sem transformar o texto. A versão 2.0 transforma a folha única num caderno: várias notas, grifo e notas de rodapé no botão direito, imagens coladas, pasta do Obsidian e uma interface inteira redesenhada no estilo do macOS e do GNOME.
 
@@ -23,20 +23,23 @@ O Escritor pode virar um aplicativo, com ícone próprio, janela própria e sem 
 
 | Sistema | Arquivo | Como usar |
 | --- | --- | --- |
-| Linux (qualquer distribuição) | `Escritor-2.8.1-linux-x86_64.AppImage` | `chmod +x` no arquivo e dois cliques |
-| Linux (Debian, Ubuntu, Mint) | `Escritor-2.8.1-linux-amd64.deb` | `sudo apt install ./Escritor-2.8.1-linux-amd64.deb` |
-| Windows 10 e 11 | `Escritor-2.8.1-windows-x64.zip` | extraia a pasta e abra o `Escritor.exe` |
-| Windows 10 e 11 | `Escritor-2.8.1-windows-instalador.exe` | instalador com atalho no menu Iniciar |
+| Linux (qualquer distribuição) | `Escritor-2.8.2-linux-x86_64.AppImage` | `chmod +x` no arquivo e dois cliques |
+| Linux (Debian, Ubuntu, Mint) | `Escritor-2.8.2-linux-amd64.deb` | `sudo apt install ./Escritor-2.8.2-linux-amd64.deb` |
+| Windows 10 e 11 | `Escritor-2.8.2-windows-x64.zip` | extraia a pasta e abra o `Escritor.exe` |
+| Windows 10 e 11 | `Escritor-2.8.2-windows-instalador.exe` | instalador com atalho no menu Iniciar (só nos lançamentos gerados no Windows) |
 
 O programa de computador guarda as notas dentro dele, separadas das do navegador: para levar notas de um para o outro, exporte e abra, ou ligue os dois à mesma pasta do Obsidian. Arquivos `.md` e `.txt` abertos pelo sistema (**Abrir com → Escritor**) entram como nota nova.
 
-Os pacotes são gerados pelo GitHub Actions sempre que algo muda em `desktop/` (para uma versão nova, suba o número em `desktop/package.json`). Para gerá-los você mesmo, dentro de `desktop/`: `npm install`, depois `npm run linux` ou `npm run windows`. O instalador `.exe` do Windows só se gera no próprio Windows (`npm run windows-instalador`); no Linux sai o `.zip`.
+Os pacotes podem ser gerados pelo GitHub Actions sempre que algo muda em `desktop/` (para uma versão nova, suba o número em `desktop/package.json`); os da 2.8.2 foram gerados à mão e postos na página de lançamentos, porque o Actions estava parado na conta. Para gerá-los você mesmo, dentro de `desktop/`: `npm install`, depois `npm run linux` ou `npm run windows`. O instalador `.exe` do Windows só se gera no próprio Windows ou com o Wine instalado (`npm run windows-instalador`); sem ele, no Linux sai o `.zip`.
 
 ---
 
 ## Na 2.8
 
-- **Ícone novo (2.8.1):** um caderno de espiral azul com a caneta laranja escrevendo no fim da última linha, desenhado no estilo dos ícones do GNOME (frontal, com a espessura da capa embaixo e a paleta do Adwaita). Está em `icons/escritor.svg`, de onde saem os PNG, o `.ico` e o ícone *maskable* do Android. O favicon da aba continua o traço escuro de sempre, que lê melhor em 16 px.
+- **Celular, segunda revisão (2.8.2):** a barra de **Buscar e substituir** passava da tela (as setas, o Aa, o ab| e o × ficavam de fora); no celular ela tem agora três linhas, com a contagem dentro do campo. O **Documento** não pula mais de altura ao trocar de aba. O rodapé não quebra em duas linhas quando aparecem os comentários: no estreito o balão fica só com o número e o "salvo" só com o ponto verde. O botão direito perdeu os atalhos de teclado em tela de toque, e no celular a seção **Atalhos** sai do Personalizar.
+- **Ícone redesenhado (2.8.2):** o caderno azul de espiral com o lápis ficou no padrão real dos aplicativos do GNOME: formas chapadas da paleta Adwaita, sem contornos, luz de cima e a espessura do objeto embaixo. Ele aparece também no **Sobre**, como nos apps do GNOME.
+
+- **Ícone novo (2.8.1):** um caderno de espiral azul com a caneta laranja escrevendo no fim da última linha, no estilo dos ícones do GNOME. Está em `icons/escritor.svg`, de onde saem os PNG, o `.ico` e o ícone *maskable* do Android. O favicon da aba continua o traço escuro de sempre, que lê melhor em 16 px.
 
 - **Celular revisto por inteiro:** em telas de 360 px a barra passava da borda e o **⋯** ficava cortado; agora a tela cheia sai da barra (continua em **Ferramentas**) e tudo cabe até em 320 px. Com o celular deitado, o **Personalizar** vira folha inteira, com as seções numa fila de pílulas, em vez de sobrar uma fresta para o conteúdo; os pop-ups usam quase toda a altura e rolam por dentro. Os atalhos de teclado (`Ctrl+F`, `Esc fechar`…) somem em qualquer tela de toque, também deitada e no tablet, onde antes continuavam à mostra.
 - **Aplicativo instalável:** manifesto, ícones e um *service worker* que guarda o Escritor inteiro no aparelho na primeira visita. Ele abre sem internet, instala pelo Chrome e pelo Edge e aceita `.md` e `.txt` abertos pelo sistema. Uma versão nova vale a partir da abertura seguinte.

@@ -1,7 +1,8 @@
 {
   "name": "escritor",
   "productName": "Escritor",
-  "version": "2.8.1",
+  "desktopName": "escritor.desktop",
+  "version": "2.8.2",
   "description": "Caderno de escrita e estudo em Markdown",
   "author": "GR Brands <contato@grbrands.com.br>",
   "homepage": "https://cesteduardo.github.io/escritor/",
@@ -42,7 +43,14 @@
       "mimeTypes": [
         "text/markdown",
         "text/plain"
-      ]
+      ],
+      "syncDesktopName": true,
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "escritor",
+          "Keywords": "markdown;escrever;notas;texto;writer;"
+        }
+      }
     },
     "win": {
       "icon": "app/icons/icon.ico",
